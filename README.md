@@ -1,16 +1,21 @@
-# vibe
+# VIBE SNIPPETS
 Snippets of small Vibe projects
 
 These are small Vibe apps that some folks may find useful. I certainly do. 
 
-## ORIGINAL WORK
-Restyler.html and masstransfer.html are image style transfer tools, the first works of an image the second does the same thing to a group of images.
-Custom.html is a small app to make and save custom links
+## Originals
+- Restyler.html is an image style transfer tools which converts a  single image
+- masstransfer.html.  This is a batch tool does the same thing as restyler.html to a group of images.
+- Custom.html is a small app to make and save custom links
 
-## REMIX
+## Remixes
 These are remixes of others work
-trai.html
-tr303
-psycho.html
+- drummachine.html
+- ai303.html
+- psycho.html
+
+## Use
+
+They can be used locally or served
 
 ## Enjoy
