@@ -1,11 +1,10 @@
 # VIBE SNIPPETS
-Snippets of small Vibe projects
 
 These are small Vibe apps that some folks may find useful. I certainly do. 
 
 ## Originals
-- restyler.html is an image style transfer tools which produces a restyled form of a single image - try it http://restyle.puter.site
-- masstransfer.html.  This is a batch tool does the same thing as restyler.html to a group of images - try it http://masstransfer.puter.site
+- restyle.html is an image style transfer tools which produces a restyled form of a single image - try it http://restyle.puter.site
+- masstransfer.html.  This is a batch tool does the same thing as restyler.html to a group of images - try it http://mass-transfer.puter.site
 - Custom.html is a small app to make and save custom links
 
 ## Remixes
