@@ -1,0 +1,378 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RESTYLER - by CD Xbow</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect, useRef } from "react"
+import { callAI } from "call-ai"
+import { ImgGen } from "use-vibes"
+import { useFireproof } from "use-fireproof"
+
+export default function App() {
+  const { database, useLiveQuery } = useFireproof("style-transfer-studio")
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedImageUrl, setSelectedImageUrl] = useState(null)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const fileInputRef = useRef(null)
+  
+  const { docs: imageDocuments } = useLiveQuery('type', {
+    key: 'image',
+    descending: true,
+  })
+
+  const styles = [
+    'Photorealistic', 'Portrait', 'Landscape', 'Vintage', 'Minimalist',
+    'Watercolor', 'Oil Painting', 'Digital Art', 'Black & White', 'Cinematic'
+  ]
+
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode')
+    if (saved) setIsDarkMode(JSON.parse(saved))
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('darkMode', JSON.stringify(newMode))
+  }
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0]
+    if (file) {
+      setSelectedImage(file)
+      // Create a preview URL for the uploaded image
+      const imageUrl = URL.createObjectURL(file)
+      setSelectedImageUrl(imageUrl)
+    }
+  }
+
+  const applyStyle = async (style) => {
+    if (!selectedImage) return
+    
+    setIsProcessing(true)
+    try {
+      // Create the document with the uploaded image first
+      const doc = {
+        type: 'image',
+        prompt: `Transform this image into a ${style.toLowerCase()} style. Apply the artistic effects and characteristics of ${style} while maintaining the core composition and subject matter. Make it look professional and artistic.`,
+        style: style,
+        originalName: selectedImage.name,
+        createdAt: new Date().toISOString(),
+        _files: {
+          original: selectedImage
+        }
+      }
+      
+      await database.put(doc)
+      
+    } catch (error) {
+      console.error('Error applying style:', error)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const downloadImage = async (docId, format) => {
+    try {
+      const imgElement = document.querySelector(`[data-doc-id="${docId}"] img`)
+      if (imgElement && imgElement.src) {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        const img = new Image()
+        
+        img.crossOrigin = 'anonymous'
+        img.onload = () => {
+          canvas.width = img.width
+          canvas.height = img.height
+          ctx.drawImage(img, 0, 0)
+          
+          const link = document.createElement('a')
+          const doc = imageDocuments.find(d => d._id === docId)
+          link.download = `styled-image-${doc?.style || 'generated'}-${Date.now()}.${format}`
+          link.href = canvas.toDataURL(`image/${format}`)
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+        }
+        img.src = imgElement.src
+      }
+    } catch (error) {
+      console.error('Error downloading image:', error)
+      alert('Error downloading image. Please try again.')
+    }
+  }
+
+  const copyToClipboard = async (docId) => {
+    try {
+      const imgElement = document.querySelector(`[data-doc-id="${docId}"] img`)
+      if (imgElement && imgElement.src) {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        const img = new Image()
+        
+        img.crossOrigin = 'anonymous'
+        img.onload = async () => {
+          canvas.width = img.width
+          canvas.height = img.height
+          ctx.drawImage(img, 0, 0)
+          
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ])
+              alert('Image copied to clipboard!')
+            }
+          })
+        }
+        img.src = imgElement.src
+      }
+    } catch (error) {
+      console.error('Error copying to clipboard:', error)
+      alert('Error copying to clipboard. Please try again.')
+    }
+  }
+
+  const deleteImage = async (doc) => {
+    if (confirm('Are you sure you want to delete this image?')) {
+      await database.del(doc._id)
+    }
+  }
+
+  const clearSelectedImage = () => {
+    setSelectedImage(null)
+    if (selectedImageUrl) {
+      URL.revokeObjectURL(selectedImageUrl)
+      setSelectedImageUrl(null)
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const themeClasses = isDarkMode 
+    ? 'bg-[#242424] text-[#ffffff]' 
+    : 'bg-[#ffffff] text-[#242424]'
+
+  const cardTheme = isDarkMode 
+    ? 'bg-[#70d6ff] border-[#242424]' 
+    : 'bg-[#e9ff70] border-[#242424]'
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
+      {/* Background Pattern */}
+      <div className="fixed inset-0 opacity-10 pointer-events-none">
+        <div className="w-full h-full" style={{
+          backgroundImage: `radial-gradient(circle at 25% 25%, #ff70a6 2px, transparent 2px),
+                           radial-gradient(circle at 75% 75%, #70d6ff 2px, transparent 2px),
+                           radial-gradient(circle at 50% 50%, #ffd670 1px, transparent 1px)`,
+          backgroundSize: '60px 60px, 80px 80px, 40px 40px',
+          backgroundPosition: '0 0, 30px 30px, 15px 15px'
+        }} />
+      </div>
+
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold">RESTYLER</h1>
+          <em> Upload an image and restyle it. Magic for the benefit of humanity, by CD Xbow</em>
+                   <button
+            onClick={toggleTheme}
+            className={`px-4 py-2 rounded-lg border-4 border-[#242424] transition-colors ${
+              isDarkMode ? 'bg-[#ffd670] text-[#242424]' : 'bg-[#ff70a6] text-[#ffffff]'
+            }`}
+          >
+            {isDarkMode ? 'â˜€ï¸ Light' : 'ðŸŒ™ Dark'}
+          </button>
+        </div>
+
+        {/* Upload Section */}
+        <div className={`p-6 rounded-lg border-4 border-[#242424] mb-8 ${cardTheme}`}>
+          <h2 className="text-2xl font-bold mb-4 text-[#242424]">Upload Your Image</h2>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          <div className="flex flex-wrap gap-4 items-center">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-[#ff9770] text-[#ffffff] px-6 py-3 rounded-lg border-4 border-[#242424] hover:bg-[#ff70a6] transition-colors font-bold"
+            >
+              Choose Image
+            </button>
+            {selectedImage && (
+              <button
+                onClick={clearSelectedImage}
+                className="bg-[#ff70a6] text-[#ffffff] px-4 py-3 rounded-lg border-4 border-[#242424] hover:bg-[#242424] transition-colors font-bold"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          
+          {/* Image Preview */}
+          {selectedImage && selectedImageUrl && (
+            <div className="mt-6">
+              <p className="text-[#242424] font-medium mb-2">Selected: {selectedImage.name}</p>
+              <div className="w-full max-w-md mx-auto bg-[#ffffff] border-4 border-[#242424] rounded-lg overflow-hidden">
+                <img 
+                  src={selectedImageUrl} 
+                  alt="Selected image preview" 
+                  className="w-full h-auto object-contain max-h-64"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Style Buttons */}
+        {selectedImage && (
+          <div className={`p-6 rounded-lg border-4 border-[#242424] mb-8 ${cardTheme}`}>
+            <h2 className="text-2xl font-bold mb-4 text-[#242424]">Apply Style</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {styles.map((style) => (
+                <button
+                  key={style}
+                  onClick={() => applyStyle(style)}
+                  disabled={isProcessing}
+                  className="bg-[#70d6ff] text-[#242424] px-4 py-3 rounded-lg border-4 border-[#242424] hover:bg-[#ff70a6] hover:text-[#ffffff] transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {style}
+                </button>
+              ))}
+            </div>
+            {isProcessing && (
+              <div className="mt-4 text-[#242424] font-medium">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-[#242424] border-t-transparent rounded-full animate-spin"></div>
+                  Processing your image... This may take a moment.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Generated Images Gallery */}
+        {imageDocuments.length > 0 && (
+          <div className={`p-6 rounded-lg border-4 border-[#242424] ${cardTheme}`}>
+            <h2 className="text-2xl font-bold mb-6 text-[#242424]">Your Styled Images</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {imageDocuments.map((doc) => (
+                <div key={doc._id} className="bg-[#ffffff] rounded-lg border-4 border-[#242424] overflow-hidden">
+                  <div data-doc-id={doc._id} className="relative">
+                    <ImgGen _id={doc._id} database={database} />
+                  </div>
+                  
+                  <div className="p-4">
+                    <h3 className="font-bold text-[#242424] mb-2">
+                      {doc.style || 'Generated'} Style
+                    </h3>
+                    <p className="text-sm text-[#242424] mb-4 opacity-70">
+                      Original: {doc.originalName || 'Unknown'}
+                    </p>
+                    <p className="text-xs text-[#242424] mb-4 opacity-50">
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </p>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => downloadImage(doc._id, 'png')}
+                        className="bg-[#e9ff70] text-[#242424] px-3 py-2 rounded border-2 border-[#242424] hover:bg-[#ffd670] transition-colors text-sm font-medium"
+                      >
+                        PNG
+                      </button>
+                      <button
+                        onClick={() => downloadImage(doc._id, 'jpeg')}
+                        className="bg-[#ff9770] text-[#ffffff] px-3 py-2 rounded border-2 border-[#242424] hover:bg-[#ff70a6] transition-colors text-sm font-medium"
+                      >
+                        JPG
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(doc._id)}
+                        className="bg-[#70d6ff] text-[#242424] px-3 py-2 rounded border-2 border-[#242424] hover:bg-[#ff70a6] hover:text-[#ffffff] transition-colors text-sm font-medium"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => deleteImage(doc)}
+                        className="bg-[#ff70a6] text-[#ffffff] px-3 py-2 rounded border-2 border-[#242424] hover:bg-[#242424] transition-colors text-sm font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {imageDocuments.length === 0 && !selectedImage && (
+          <div className={`p-8 rounded-lg border-4 border-[#242424] text-center ${cardTheme}`}>
+            <h2 className="text-2xl font-bold mb-4 text-[#242424]">Welcome to Style Transfer Studio</h2>
+            <p className="text-[#242424] opacity-70">Upload an image to get started with AI style transformations!</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>

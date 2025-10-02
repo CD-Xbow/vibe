@@ -1,0 +1,311 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Made on Vibes DIY</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect } from "react"
+import { callAI } from "call-ai"
+import { useFireproof } from "use-fireproof"
+
+export default function App() {
+  const { useDocument, useLiveQuery, database } = useFireproof("links-manager");
+  
+  const [theme, setTheme] = useState(() => 
+    localStorage.getItem('theme') || 'light'
+  );
+  
+  const { doc: newLink, merge: mergeNewLink, submit: submitNewLink } = useDocument({
+    title: "",
+    url: "",
+    description: "",
+    category: "",
+    type: "link"
+  });
+
+  const { docs: links } = useLiveQuery("type", { 
+    key: "link" 
+  });
+
+  const categories = [...new Set(links.map(link => link.category).filter(Boolean))];
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const generateDemoLinks = async () => {
+    const response = await callAI("Generate 8 useful web development and design links with title, url, description, and category (like 'Design', 'Development', 'Tools', 'Learning'). Make them real, popular websites.", {
+      schema: {
+        properties: {
+          links: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                url: { type: "string" },
+                description: { type: "string" },
+                category: { type: "string" }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const data = JSON.parse(response);
+    for (const link of data.links) {
+      await database.put({
+        ...link,
+        type: "link",
+        createdAt: Date.now()
+      });
+    }
+  };
+
+  const deleteLink = async (id) => {
+    await database.del(id);
+  };
+
+  const themeClasses = theme === 'dark' 
+    ? 'bg-gray-900 text-gray-100' 
+    : 'bg-gray-50 text-gray-900';
+
+  const cardClasses = theme === 'dark'
+    ? 'bg-gray-800 border border-gray-700'
+    : 'bg-white border border-gray-200';
+
+  const inputClasses = theme === 'dark'
+    ? 'bg-gray-700 border border-gray-600 text-gray-100 placeholder-gray-400'
+    : 'bg-white border border-gray-300 text-gray-900 placeholder-gray-500';
+
+  const buttonClasses = theme === 'dark'
+    ? 'bg-gray-700 border border-gray-600 text-gray-100 hover:bg-gray-600'
+    : 'bg-gray-100 border border-gray-300 text-gray-900 hover:bg-gray-200';
+
+  const primaryButtonClasses = theme === 'dark'
+    ? 'bg-blue-600 text-white hover:bg-blue-700 border border-blue-600'
+    : 'bg-blue-600 text-white hover:bg-blue-700 border border-blue-600';
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+          <div>
+            <h2 className="text-4xl font-bold mb-2">Custom Links</h2>
+            <p className="text-lg italic opacity-75">
+              *Organize your favorite websites in a responsive grid that adapts from 1-3 columns. Add links manually or generate demo data to get started.*
+            </p>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className={`px-4 py-2 rounded font-medium transition-colors ${buttonClasses}`}
+          >
+            {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+          </button>
+        </div>
+
+  
+
+        {/* Categories Filter */}
+        {categories.length > 0 && (
+          <div className="mb-6">
+            <div className="flex flex-wrap gap-2">
+              {categories.map(category => (
+                <span
+                  key={category}
+                  className={`px-3 py-1 rounded text-sm font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}
+                >
+                  {category}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Links Grid - Responsive 1-3 columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {links.map((link) => (
+            <div
+              key={link._id}
+              className={`p-4 rounded-lg transition-all hover:scale-[1.02] ${cardClasses}`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="text-lg font-semibold line-clamp-2 flex-1">
+                  {link.title}
+                </h3>
+                <button
+                  onClick={() => deleteLink(link._id)}
+                  className={`ml-2 px-2 py-1 text-sm rounded transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-red-400 hover:bg-gray-700' : 'text-gray-500 hover:text-red-600 hover:bg-gray-100'}`}
+                >
+                  ×
+                </button>
+              </div>
+              
+              {link.category && (
+                <span className={`inline-block px-2 py-1 text-xs font-medium rounded mb-3 ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
+                  {link.category}
+                </span>
+              )}
+              
+              {link.description && (
+                <p className={`mb-4 text-sm line-clamp-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {link.description}
+                </p>
+              )}
+              
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`inline-block px-3 py-2 text-sm font-medium rounded transition-colors ${primaryButtonClasses}`}
+              >
+                Visit Link
+              </a>
+              
+              <div className={`mt-3 text-xs break-all ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                {new URL(link.url).hostname}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {links.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4 opacity-50">🔗</div>
+            <h3 className="text-xl font-semibold mb-2">No links yet!</h3>
+            <p className="italic opacity-75">
+              **Add your first link** using the form above or click **Demo Data** to see examples.
+            </p>
+          </div>
+        )}
+      {/* Add Link Form */}
+        <div className={`p-6 rounded-lg mb-8 ${cardClasses}`}>
+          <h2 className="text-xl font-semibold mb-4">Add New Link</h2>
+          <form onSubmit={submitNewLink} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              type="text"
+              placeholder="Link Title"
+              value={newLink.title}
+              onChange={(e) => mergeNewLink({ title: e.target.value })}
+              className={`px-3 py-2 rounded ${inputClasses}`}
+              required
+            />
+            <input
+              type="url"
+              placeholder="https://example.com"
+              value={newLink.url}
+              onChange={(e) => mergeNewLink({ url: e.target.value })}
+              className={`px-3 py-2 rounded ${inputClasses}`}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Category (e.g., Design, Tools)"
+              value={newLink.category}
+              onChange={(e) => mergeNewLink({ category: e.target.value })}
+              className={`px-3 py-2 rounded ${inputClasses}`}
+            />
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className={`flex-1 px-4 py-2 rounded font-medium transition-colors ${primaryButtonClasses}`}
+              >
+                Add Link
+              </button>
+              {links.length === 0 && (
+                <button
+                  type="button"
+                  onClick={generateDemoLinks}
+                  className={`px-4 py-2 rounded font-medium transition-colors ${buttonClasses}`}
+                >
+                  Demo Data
+                </button>
+              )}
+            </div>
+            <textarea
+              placeholder="Description (optional)"
+              value={newLink.description}
+              onChange={(e) => mergeNewLink({ description: e.target.value })}
+              className={`px-3 py-2 rounded md:col-span-2 ${inputClasses}`}
+              rows="2"
+            />
+          </form>
+        </div>
+        {/* Instructions */}
+        <div className={`mt-12 p-6 rounded-lg ${cardClasses}`}>
+          <h3 className="text-lg font-semibold mb-3">How to Use</h3>
+          <ul className={`space-y-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            <li>• **Add links** by filling out the form with title, URL, category, and description</li>
+            <li>• **Switch themes** using the mode toggle in the header</li>
+            <li>• **Responsive layout** automatically adjusts from 1 column (mobile) to 3 columns (desktop)</li>
+            <li>• **Organize by categories** to group related links together</li>
+            <li>• **Click links** to open them in a new tab</li>
+            <li>• **Delete links** using the × button on each card</li>
+          </ul>
+     
+
+
+      </div>
+      </div>
+    </div>
+  );
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>

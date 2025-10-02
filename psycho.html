@@ -1,0 +1,739 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Psycho-Dali</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect, useRef } from "react";
+import { useFireproof } from "use-fireproof";
+import { callAI } from "call-ai";
+const App = () => {
+  const { database, useLiveQuery, useDocument } = useFireproof("psychodali-filters");
+  const [isDarkTheme, setIsDarkTheme] = useState(true);
+  const [sampleImage, setSampleImage] = useState("https://picsum.photos/id/1015/512/512");
+  const [isImageLoading, setIsImageLoading] = useState(false);
+  const [position1, setPosition1] = useState({ x: 0.5, y: 0.5 });
+  const [position2, setPosition2] = useState({ x: 0.5, y: 0.5 });
+  const [blurAmount, setBlurAmount] = useState(0);
+  const [contrastAmount, setContrastAmount] = useState(100);
+  const [hueRotate, setHueRotate] = useState(0);
+  const [saturation, setSaturation] = useState(100);
+  const [invert, setInvert] = useState(0);
+  const [viewMode, setViewMode] = useState("side-by-side");
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const canvas1Ref = useRef(null);
+  const canvas2Ref = useRef(null);
+  const isDragging1Ref = useRef(false);
+  const isDragging2Ref = useRef(false);
+  const filterId = useRef(`filter-${Date.now()}`);
+  // Color matrices - simplified but still effective
+  const matrices = {
+    controller1: {
+      topLeft: [2.0, -0.5, -0.3, 0, 0.2, 0.4, 1.8, -0.4, 0, 0.1, -0.4, 0.3, 1.5, 0, 0.1, 0, 0, 0, 1, 0],
+      topRight: [1.8, -0.3, 0.2, 0, 0.1, -0.1, 1.5, 0.3, 0, 0.1, 0.2, -0.2, 1.3, 0, 0.1, 0, 0, 0, 1, 0],
+      bottomLeft: [-1.0, 1.5, -0.2, 0, 0.1, 0.3, -0.8, 1.3, 0, 0.1, 0.8, -0.3, -0.5, 0, 0.1, 0, 0, 0, 1, 0],
+      bottomRight: [1.5, -0.6, 0.8, 0, 0.1, 0.6, 1.2, -0.3, 0, 0.1, -0.2, 0.4, 1.0, 0, 0.1, 0, 0, 0, 1, 0],
+    },
+    controller2: {
+      topLeft: [1.2, 0.8, -0.6, 0, 0.1, -0.4, 1.3, 0.2, 0, 0.1, 0.3, -0.1, 1.1, 0, 0.1, 0, 0, 0, 1, 0],
+      topRight: [-0.8, 1.4, 0.5, 0, 0.1, 0.8, -0.2, 0.7, 0, 0.1, 0.5, 0.5, -0.8, 0, 0.1, 0, 0, 0, 1, 0],
+      bottomLeft: [0.3, -0.4, 1.2, 0, 0.1, -0.6, 0.1, 1.3, 0, 0.1, 1.0, -0.2, -0.3, 0, 0.1, 0, 0, 0, 1, 0],
+      bottomRight: [1.1, -0.8, 0.4, 0, 0.1, -0.3, 1.1, -0.2, 0, 0.1, 0.4, -0.3, 1.0, 0, 0.1, 0, 0, 0, 1, 0],
+    }
+  };
+  const defaultMatrix = interpolateMatrices(0.5, 0.5, 0.5, 0.5);
+  const { doc: currentFilter, merge, save } = useDocument({
+    name: "",
+    matrix: defaultMatrix,
+    effects: {
+      blur: blurAmount,
+      contrast: contrastAmount,
+      hueRotate: hueRotate,
+      saturate: saturation,
+      invert: invert
+    },
+    _files: {}
+  });
+  const { docs: savedFilters } = useLiveQuery("name");
+  // Theme colors
+  const theme = {
+    light: {
+      bg: "bg-gray-50",
+      cardBg: "bg-white",
+      text: "text-gray-900",
+      textSecondary: "text-gray-600",
+      border: "border-gray-200",
+      accent: "bg-blue-500",
+      accentHover: "hover:bg-blue-600",
+      buttonSecondary: "bg-gray-100 hover:bg-gray-200",
+    },
+    dark: {
+      bg: "bg-[#242424]",
+      cardBg: "bg-[#333333]",
+      text: "text-white",
+      textSecondary: "text-gray-300",
+      border: "border-gray-600",
+      accent: "bg-[#70d6ff]",
+      accentHover: "hover:bg-[#50c0ff]",
+      buttonSecondary: "bg-[#444444] hover:bg-[#555555]",
+    }
+  };
+  const currentTheme = isDarkTheme ? theme.dark : theme.light;
+  function interpolateMatrices(x1, y1, x2, y2) {
+    const { controller1, controller2 } = matrices;
+    // Interpolate controller 1
+    const result1 = [];
+    for (let i = 0; i < 20; i++) {
+      const top = controller1.topLeft[i] * (1 - x1) + controller1.topRight[i] * x1;
+      const bottom = controller1.bottomLeft[i] * (1 - x1) + controller1.bottomRight[i] * x1;
+      result1[i] = top * (1 - y1) + bottom * y1;
+    }
+    // Interpolate controller 2
+    const result2 = [];
+    for (let i = 0; i < 20; i++) {
+      const top = controller2.topLeft[i] * (1 - x2) + controller2.topRight[i] * x2;
+      const bottom = controller2.bottomLeft[i] * (1 - x2) + controller2.bottomRight[i] * x2;
+      result2[i] = top * (1 - y2) + bottom * y2;
+    }
+    // Blend both controllers
+    const finalResult = [];
+    for (let i = 0; i < 20; i++) {
+      finalResult[i] = (result1[i] + result2[i]) / 2;
+    }
+    return finalResult;
+  }
+  useEffect(() => {
+    const matrix = interpolateMatrices(position1.x, position1.y, position2.x, position2.y);
+    merge({
+      matrix,
+      effects: {
+        blur: blurAmount,
+        contrast: contrastAmount,
+        hueRotate: hueRotate,
+        saturate: saturation,
+        invert: invert
+      }
+    });
+  }, [position1, position2, blurAmount, contrastAmount, hueRotate, saturation, invert]);
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+  const processImageFile = (file) => {
+    if (file && file.type.match('image.*')) {
+      setIsImageLoading(true);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setSampleImage(event.target.result);
+        merge({ _files: { "image": file } });
+        setIsImageLoading(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+  const handleDragLeave = () => {
+    setIsDraggingOver(false);
+  };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      processImageFile(files[0]);
+    }
+  };
+  const updatePosition = (canvasRef, setPosition, e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    let x = (e.clientX - rect.left) / rect.width;
+    let y = (e.clientY - rect.top) / rect.height;
+    x = Math.max(0, Math.min(1, x));
+    y = Math.max(0, Math.min(1, y));
+    setPosition({ x, y });
+  };
+  const handleMouseDown1 = (e) => {
+    isDragging1Ref.current = true;
+    updatePosition(canvas1Ref, setPosition1, e);
+  };
+  const handleMouseMove1 = (e) => {
+    if (!isDragging1Ref.current) return;
+    updatePosition(canvas1Ref, setPosition1, e);
+  };
+  const handleMouseUp1 = () => {
+    isDragging1Ref.current = false;
+  };
+  const handleMouseDown2 = (e) => {
+    isDragging2Ref.current = true;
+    updatePosition(canvas2Ref, setPosition2, e);
+  };
+  const handleMouseMove2 = (e) => {
+    if (!isDragging2Ref.current) return;
+    updatePosition(canvas2Ref, setPosition2, e);
+  };
+  const handleMouseUp2 = () => {
+    isDragging2Ref.current = false;
+  };
+  const handleSaveFilter = (e) => {
+    e.preventDefault();
+    if (!currentFilter.name.trim()) {
+      alert("Please enter a name for your filter");
+      return;
+    }
+    save();
+    merge({ name: "" });
+  };
+  const handleLoadFilter = (savedFilter) => {
+    merge({
+      matrix: [...savedFilter.matrix],
+      name: savedFilter.name
+    });
+    if (savedFilter.effects) {
+      setBlurAmount(savedFilter.effects.blur || 0);
+      setContrastAmount(savedFilter.effects.contrast || 100);
+      setHueRotate(savedFilter.effects.hueRotate || 0);
+      setSaturation(savedFilter.effects.saturate || 100);
+      setInvert(savedFilter.effects.invert || 0);
+    }
+  };
+  const handleDeleteFilter = async (id) => {
+    await database.del(id);
+  };
+  const getMatrixValuesString = () => {
+    return currentFilter.matrix?.join(" ") || defaultMatrix.join(" ");
+  };
+  const copyToClipboard = () => {
+    const svgCode = `<filter id="customFilter">
+  <feColorMatrix type="matrix" values="${getMatrixValuesString()}" />
+</filter>`;
+    navigator.clipboard.writeText(svgCode).then(() => {
+      alert("SVG code copied to clipboard!");
+    });
+  };
+  const copyCSSToClipboard = () => {
+    const cssCode = `filter: blur(${blurAmount}px) contrast(${contrastAmount}%) hue-rotate(${hueRotate}deg) saturate(${saturation}%) invert(${invert}%);`;
+    navigator.clipboard.writeText(cssCode).then(() => {
+      alert("CSS code copied to clipboard!");
+    });
+  };
+  const generateDemoFilters = async () => {
+    try {
+      const response = await callAI(
+        "Generate 5 creative color matrix filter presets for artistic image effects. Each preset should have a creative name and a 20-element color matrix with values typically ranging from -2.0 to +2.0. Include additional effect values for blur (0-5), contrast (50-200), hue-rotation (0-360), saturation (50-300), and invert (0-50). Return as structured JSON only.",
+        {
+          schema: {
+            properties: {
+              filters: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    matrix: { type: "array", items: { type: "number" } },
+                    effects: {
+                      type: "object",
+                      properties: {
+                        blur: { type: "number" },
+                        contrast: { type: "number" },
+                        hueRotate: { type: "number" },
+                        saturate: { type: "number" },
+                        invert: { type: "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      );
+      const filtersData = JSON.parse(response).filters;
+      for (const filterData of filtersData) {
+        await database.put(filterData);
+      }
+    } catch (error) {
+      console.error("Error generating demo filters:", error);
+      alert("Failed to generate demo filters. Please try again.");
+    }
+  };
+  const randomizeFilter = () => {
+    setPosition1({
+      x: Math.random(),
+      y: Math.random()
+    });
+    setPosition2({
+      x: Math.random(),
+      y: Math.random()
+    });
+    setBlurAmount(Math.random() * 5);
+    setContrastAmount(50 + Math.random() * 150);
+    setHueRotate(Math.random() * 360);
+    setSaturation(50 + Math.random() * 250);
+    setInvert(Math.random() * 50);
+  };
+  return (
+    <div
+      className={`min-h-screen transition-colors duration-300 ${currentTheme.bg} ${isDraggingOver ? 'ring-4 ring-blue-400' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drop zone overlay */}
+      {isDraggingOver && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pointer-events-none">
+          <div className={`text-center p-8 rounded-xl border-4 border-dashed border-blue-400 ${currentTheme.cardBg}`}>
+            <div className="text-6xl mb-4">📷</div>
+            <div className={`text-3xl font-bold text-blue-500`}>Drop Image Here</div>
+          </div>
+        </div>
+      )}
+      <div className="container mx-auto px-6 py-8 max-w-7xl">
+        {/* Header */}
+        <header className="text-center mb-12">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className={`text-5xl font-bold ${currentTheme.text}`}>
+              PsychoDali
+            </h1>
+            <button
+              onClick={() => setIsDarkTheme(!isDarkTheme)}
+              className={`p-3 rounded-lg ${currentTheme.buttonSecondary} ${currentTheme.text} transition-colors`}
+            >
+              {isDarkTheme ? '☀️' : '🌙'}
+            </button>
+          </div>
+          <p className={`text-lg italic ${currentTheme.textSecondary} max-w-3xl mx-auto`}>
+            <em>Professional color matrix manipulation tool for creating surreal image transformations. Remix of loose-gerbil-5537.vibesdiy.app.</em>
+          </p>
+        </header>
+        {/* Preview Area */}
+        <div className={`mb-12 ${currentTheme.cardBg} p-8 rounded-xl ${currentTheme.border} border shadow-lg`}>
+          <svg width="0" height="0" className="absolute">
+            <defs>
+              <filter id={filterId.current}>
+                <feColorMatrix type="matrix" values={getMatrixValuesString()} />
+                {blurAmount > 0 && <feGaussianBlur stdDeviation={blurAmount / 2} />}
+              </filter>
+            </defs>
+          </svg>
+          {isImageLoading ? (
+            <div className={`flex flex-col items-center justify-center h-64 ${currentTheme.border} border-4 rounded-xl animate-pulse`}>
+              <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className={`${currentTheme.text} font-semibold text-xl`}>Loading Image...</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {sampleImage && (
+                <>
+                  {viewMode === "side-by-side" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Original Image - now on the left */}
+                      <div className={`relative ${currentTheme.border} border-2 rounded-xl overflow-hidden shadow-md`}>
+                        <p className={`absolute top-3 left-3 z-20 text-sm font-semibold px-3 py-1 ${currentTheme.cardBg} ${currentTheme.text} rounded-lg shadow`}>
+                          Original
+                        </p>
+                        <img
+                          src={sampleImage}
+                          alt="Original"
+                          className="w-full"
+                        />
+                      </div>
+                      {/* Filtered Image - now on the right */}
+                      <div className={`relative ${currentTheme.border} border-2 rounded-xl overflow-hidden shadow-md`}>
+                        <p className={`absolute top-3 right-3 z-20 text-sm font-semibold px-3 py-1 ${currentTheme.cardBg} ${currentTheme.text} rounded-lg shadow`}>
+                          Filtered
+                        </p>
+                        <img
+                          src={sampleImage}
+                          alt="Filtered"
+                          style={{
+                            filter: `url(#${filterId.current}) contrast(${contrastAmount}%) hue-rotate(${hueRotate}deg) saturate(${saturation}%) invert(${invert}%)`,
+                          }}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {viewMode === "full" && (
+                    <div className={`relative ${currentTheme.border} border-2 rounded-xl overflow-hidden shadow-md`}>
+                      <p className={`absolute top-3 left-3 z-20 text-sm font-semibold px-3 py-1 ${currentTheme.cardBg} ${currentTheme.text} rounded-lg shadow`}>
+                        Filtered View
+                      </p>
+                      <img
+                        src={sampleImage}
+                        alt="Filtered"
+                        style={{
+                          filter: `url(#${filterId.current}) contrast(${contrastAmount}%) hue-rotate(${hueRotate}deg) saturate(${saturation}%) invert(${invert}%)`,
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {/* Image controls */}
+          <div className="flex justify-center gap-4 mt-8">
+            <label
+              htmlFor="imageUpload"
+              className="cursor-pointer px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+            >
+              <span>📷</span> Upload Image
+            </label>
+            <input
+              id="imageUpload"
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => setViewMode(viewMode === "side-by-side" ? "full" : "side-by-side")}
+              className={`px-6 py-3 ${currentTheme.buttonSecondary} ${currentTheme.text} font-semibold rounded-lg transition-colors`}
+            >
+              {viewMode === "side-by-side" ? "Full View" : "Side by Side"}
+            </button>
+            <button
+              onClick={randomizeFilter}
+              className="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors"
+            >
+              🎲 Randomize
+            </button>
+          </div>
+          <p className={`text-center ${currentTheme.textSecondary} text-sm mt-4`}>
+            Drag and drop an image anywhere to use it
+          </p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column - Controls */}
+          <div className="space-y-8">
+            {/* Controllers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Controller 1 */}
+              <div className={`${currentTheme.cardBg} p-6 rounded-xl ${currentTheme.border} border shadow-lg`}>
+                <h3 className={`text-xl font-semibold mb-4 ${currentTheme.text}`}>Controller A</h3>
+                <div className="flex justify-center mb-4">
+                  <div
+                    ref={canvas1Ref}
+                    className={`w-48 h-48 ${currentTheme.border} border-2 rounded-xl relative cursor-pointer`}
+                    onMouseDown={handleMouseDown1}
+                    onMouseMove={handleMouseMove1}
+                    onMouseUp={handleMouseUp1}
+                    onMouseLeave={handleMouseUp1}
+                    style={{
+                      background: "linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 50%, #45b7d1 100%)"
+                    }}
+                  >
+                    <div
+                      className="absolute w-4 h-4 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 shadow-lg border-2 border-gray-800"
+                      style={{
+                        left: `${position1.x * 100}%`,
+                        top: `${position1.y * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              {/* Controller 2 */}
+              <div className={`${currentTheme.cardBg} p-6 rounded-xl ${currentTheme.border} border shadow-lg`}>
+                <h3 className={`text-xl font-semibold mb-4 ${currentTheme.text}`}>Controller B</h3>
+                <div className="flex justify-center mb-4">
+                  <div
+                    ref={canvas2Ref}
+                    className={`w-48 h-48 ${currentTheme.border} border-2 rounded-xl relative cursor-pointer`}
+                    onMouseDown={handleMouseDown2}
+                    onMouseMove={handleMouseMove2}
+                    onMouseUp={handleMouseUp2}
+                    onMouseLeave={handleMouseUp2}
+                    style={{
+                      background: "radial-gradient(circle, #f093fb 0%, #f5576c 50%, #4facfe 100%)"
+                    }}
+                  >
+                    <div
+                      className="absolute w-4 h-4 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2 shadow-lg border-2 border-gray-800"
+                      style={{
+                        left: `${position2.x * 100}%`,
+                        top: `${position2.y * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Effect Controls */}
+            <div className={`${currentTheme.cardBg} p-6 rounded-xl ${currentTheme.border} border shadow-lg`}>
+              <h3 className={`text-xl font-semibold mb-6 ${currentTheme.text}`}>Effect Controls</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className={`block ${currentTheme.text} font-medium mb-2`}>
+                    Blur: {blurAmount.toFixed(1)}px
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    value={blurAmount}
+                    onChange={(e) => setBlurAmount(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className={`block ${currentTheme.text} font-medium mb-2`}>
+                    Contrast: {contrastAmount}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="300"
+                    step="1"
+                    value={contrastAmount}
+                    onChange={(e) => setContrastAmount(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className={`block ${currentTheme.text} font-medium mb-2`}>
+                    Hue Rotate: {hueRotate}°
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    step="1"
+                    value={hueRotate}
+                    onChange={(e) => setHueRotate(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className={`block ${currentTheme.text} font-medium mb-2`}>
+                    Saturation: {saturation}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="300"
+                    step="1"
+                    value={saturation}
+                    onChange={(e) => setSaturation(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className={`block ${currentTheme.text} font-medium mb-2`}>
+                    Invert: {invert}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={invert}
+                    onChange={(e) => setInvert(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              {/* Export buttons */}
+              <div className="flex gap-4 mt-6">
+                <button
+                  onClick={copyToClipboard}
+                  className={`flex-1 px-4 py-2 ${currentTheme.buttonSecondary} ${currentTheme.text} font-medium rounded-lg transition-colors`}
+                >
+                  Copy SVG
+                </button>
+                <button
+                  onClick={copyCSSToClipboard}
+                  className={`flex-1 px-4 py-2 ${currentTheme.buttonSecondary} ${currentTheme.text} font-medium rounded-lg transition-colors`}
+                >
+                  Copy CSS
+                </button>
+              </div>
+              {/* Save filter */}
+              <div className="flex gap-2 mt-4">
+                <input
+                  type="text"
+                  value={currentFilter.name || ""}
+                  onChange={(e) => merge({ name: e.target.value })}
+                  placeholder="Filter name"
+                  className={`flex-1 px-3 py-2 ${currentTheme.border} border rounded-lg ${currentTheme.cardBg} ${currentTheme.text}`}
+                />
+                <button
+                  onClick={handleSaveFilter}
+                  className="px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+          {/* Right Column - Saved Filters */}
+          <div className="space-y-8">
+            {/* Current Filter Info */}
+            <div className={`${currentTheme.cardBg} p-6 rounded-xl ${currentTheme.border} border shadow-lg`}>
+              <h3 className={`text-xl font-semibold mb-4 ${currentTheme.text}`}>Current Filter</h3>
+              <div className={`p-4 ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg mb-4`}>
+                <h4 className={`${currentTheme.text} font-medium mb-2`}>Matrix Values:</h4>
+                <div className="grid grid-cols-5 gap-1 text-xs">
+                  {currentFilter.matrix && currentFilter.matrix.map((value, index) => (
+                    <div
+                      key={index}
+                      className={`text-center p-1 rounded ${isDarkTheme ? 'bg-gray-600' : 'bg-white'} ${currentTheme.text}`}
+                    >
+                      {value.toFixed(1)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className={`p-4 ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg`}>
+                <h4 className={`${currentTheme.text} font-medium mb-2`}>Effects:</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className={currentTheme.text}>Blur: {blurAmount.toFixed(1)}px</div>
+                  <div className={currentTheme.text}>Contrast: {contrastAmount}%</div>
+                  <div className={currentTheme.text}>Hue: {hueRotate}°</div>
+                  <div className={currentTheme.text}>Saturation: {saturation}%</div>
+                  <div className={currentTheme.text}>Invert: {invert}%</div>
+                </div>
+              </div>
+            </div>
+            {/* Saved Filters */}
+            <div className={`${currentTheme.cardBg} p-6 rounded-xl ${currentTheme.border} border shadow-lg`}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className={`text-xl font-semibold ${currentTheme.text}`}>Saved Filters</h3>
+                <button
+                  onClick={generateDemoFilters}
+                  className="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 transition-colors text-sm"
+                >
+                  Generate Demo
+                </button>
+              </div>
+              {savedFilters.length === 0 ? (
+                <p className={`text-center ${currentTheme.textSecondary} italic py-8`}>
+                  No saved filters yet. Create and save a filter to see it here.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {savedFilters.map((savedFilter) => (
+                    <div
+                      key={savedFilter._id}
+                      className={`p-4 ${currentTheme.border} border rounded-lg ${isDarkTheme ? 'bg-gray-700' : 'bg-gray-50'} hover:shadow-md transition-shadow`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <h4 className={`font-medium ${currentTheme.text}`}>{savedFilter.name}</h4>
+                        <button
+                          className="text-red-500 hover:text-red-700 font-bold"
+                          onClick={() => handleDeleteFilter(savedFilter._id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => handleLoadFilter(savedFilter)}
+                          className="px-3 py-1 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600 transition-colors"
+                        >
+                          Load
+                        </button>
+                        {savedFilter.effects && (
+                          <div className="flex gap-1 text-xs">
+                            {savedFilter.effects.blur > 0 && (
+                              <span className="px-2 py-1 bg-red-500 text-white rounded">B</span>
+                            )}
+                            {savedFilter.effects.contrast !== 100 && (
+                              <span className="px-2 py-1 bg-orange-500 text-white rounded">C</span>
+                            )}
+                            {savedFilter.effects.hueRotate > 0 && (
+                              <span className="px-2 py-1 bg-yellow-500 text-white rounded">H</span>
+                            )}
+                            {savedFilter.effects.saturate !== 100 && (
+                              <span className="px-2 py-1 bg-green-500 text-white rounded">S</span>
+                            )}
+                            {savedFilter.effects.invert > 0 && (
+                              <span className="px-2 py-1 bg-blue-500 text-white rounded">I</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Usage Instructions */}
+            <div className={`${currentTheme.cardBg} p-6 rounded-xl ${currentTheme.border} border shadow-lg`}>
+              <h3 className={`text-xl font-semibold ${currentTheme.text} mb-4`}>How to Use</h3>
+              <div className={`${currentTheme.textSecondary} space-y-2 text-sm`}>
+                <p><strong>1. Upload Image:</strong> Click "Upload Image" or drag and drop an image file</p>
+                <p><strong>2. Adjust Controllers:</strong> Drag the white circles in both color space controllers</p>
+                <p><strong>3. Fine-tune Effects:</strong> Use the sliders to adjust blur, contrast, hue, saturation, and inversion</p>
+                <p><strong>4. Save Filters:</strong> Enter a name and click "Save" to store your favorite combinations</p>
+                <p><strong>5. Export Code:</strong> Copy SVG or CSS code to use the filter in your projects</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+export default App
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>
