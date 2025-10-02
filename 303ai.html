@@ -1,0 +1,931 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Made on Vibes DIY</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect, useRef } from "react";
+import { useFireproof } from "use-fireproof";
+import { callAI } from "call-ai";
+
+// Tone.js for audio synthesis
+import * as Tone from "https://esm.sh/https://cdn.skypack.dev/tone";
+
+export default function App() {
+  const { database, useLiveQuery, useDocument } = useFireproof("tb303-patterns-db");
+  
+  // Current pattern being edited
+  const { doc: currentPattern, merge: updatePattern, submit: savePattern } = useDocument({
+    name: "New Pattern",
+    steps: Array(16).fill().map(() => ({
+      note: "C3",
+      isRest: false,
+      accent: false,
+      slide: false
+    })),
+    settings: {
+      waveform: "sawtooth",
+      cutoff: 800,
+      resonance: 10,
+      envMod: 50,
+      decay: 300,
+      accentAmount: 70,
+      crunch: 0,
+      tempo: 120
+    }
+  });
+
+  // Get all saved patterns
+  const { docs: savedPatterns } = useLiveQuery("name", { limit: 50 });
+  
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedPattern, setSelectedPattern] = useState(null);
+  const [programMode, setProgramMode] = useState("pitch"); // "pitch" or "time"
+  const [playbackStep, setPlaybackStep] = useState(-1);
+  const [patternUpdated, setPatternUpdated] = useState(false);
+  
+  const sequencerRef = useRef(null);
+  const synthRef = useRef(null);
+  const filterRef = useRef(null);
+  const distortionRef = useRef(null);
+  const currentPatternRef = useRef(currentPattern);
+  
+  // Keep the currentPatternRef updated with the latest pattern data
+  useEffect(() => {
+    currentPatternRef.current = currentPattern;
+  }, [currentPattern]);
+  
+  // Initialize Tone.js synth and effects
+  useEffect(() => {
+    // Create distortion effect
+    distortionRef.current = new Tone.Distortion({
+      distortion: currentPattern.settings.crunch / 100,
+      oversample: "4x" // Higher quality distortion
+    }).toDestination();
+    
+    // Create filter
+    filterRef.current = new Tone.Filter({
+      type: "lowpass",
+      frequency: currentPattern.settings.cutoff,
+      Q: currentPattern.settings.resonance / 10,
+    }).connect(distortionRef.current);
+    
+    // Create synth
+    synthRef.current = new Tone.MonoSynth({
+      oscillator: {
+        type: currentPattern.settings.waveform
+      },
+      envelope: {
+        attack: 0.001,
+        decay: currentPattern.settings.decay / 1000,
+        sustain: 0.3,
+        release: 0.1
+      }
+    }).connect(filterRef.current);
+    
+    return () => {
+      if (synthRef.current) synthRef.current.dispose();
+      if (filterRef.current) filterRef.current.dispose();
+      if (distortionRef.current) distortionRef.current.dispose();
+      if (sequencerRef.current) sequencerRef.current.dispose();
+    };
+  }, []);
+  
+  // Update synth when settings change
+  useEffect(() => {
+    if (!synthRef.current || !filterRef.current || !distortionRef.current) return;
+    
+    synthRef.current.oscillator.type = currentPattern.settings.waveform;
+    synthRef.current.envelope.decay = currentPattern.settings.decay / 1000;
+    filterRef.current.frequency.value = currentPattern.settings.cutoff;
+    filterRef.current.Q.value = currentPattern.settings.resonance / 10;
+    
+    // Base distortion level (will be increased for accented notes)
+    distortionRef.current.distortion = currentPattern.settings.crunch / 100;
+    
+    // Update tempo if playing
+    if (sequencerRef.current) {
+      Tone.Transport.bpm.value = currentPattern.settings.tempo;
+    }
+    
+    setPatternUpdated(true);
+  }, [currentPattern.settings]);
+  
+  // Start/stop sequencer
+  const togglePlay = () => {
+    if (!isPlaying) {
+      Tone.start();
+      Tone.Transport.bpm.value = currentPattern.settings.tempo;
+      
+      // Create a new sequence that always uses the most current pattern data
+      sequencerRef.current = new Tone.Sequence((time, stepIndex) => {
+        setPlaybackStep(stepIndex);
+        
+        // Get the current step data from the ref to ensure we have the latest
+        const step = currentPatternRef.current.steps[stepIndex];
+        
+        if (!step.isRest) {
+          // Apply accent
+          const velocity = step.accent ? 1.0 : 0.7;
+          const filterMod = step.accent ? 
+            currentPatternRef.current.settings.envMod * 2 : 
+            currentPatternRef.current.settings.envMod;
+          
+          // Apply crunch - double for accented notes
+          const crunchAmount = step.accent ? 
+            (currentPatternRef.current.settings.crunch / 100) * 2 : 
+            currentPatternRef.current.settings.crunch / 100;
+          
+          // Set the distortion level - clamp to max of 1.0
+          distortionRef.current.distortion = Math.min(crunchAmount, 1.0);
+          
+          // Handle slide (legato)
+          const nextStepIndex = (stepIndex + 1) % 16;
+          const nextStep = currentPatternRef.current.steps[nextStepIndex];
+          
+          if (step.slide && !nextStep.isRest) {
+            // For slide, set longer release and use glide
+            synthRef.current.portamento = 0.1;
+            synthRef.current.triggerAttack(step.note, time, velocity);
+            
+            // Increase filter cutoff temporarily for accent
+            if (step.accent) {
+              filterRef.current.frequency.setValueAtTime(
+                currentPatternRef.current.settings.cutoff + filterMod, 
+                time
+              );
+              filterRef.current.frequency.exponentialRampToValueAtTime(
+                currentPatternRef.current.settings.cutoff,
+                time + 0.1
+              );
+            }
+          } else {
+            // Normal note (no slide)
+            synthRef.current.portamento = 0;
+            synthRef.current.triggerAttackRelease(step.note, "16n", time, velocity);
+            
+            // Increase filter cutoff temporarily for accent
+            if (step.accent) {
+              filterRef.current.frequency.setValueAtTime(
+                currentPatternRef.current.settings.cutoff + filterMod, 
+                time
+              );
+              filterRef.current.frequency.exponentialRampToValueAtTime(
+                currentPatternRef.current.settings.cutoff,
+                time + 0.1
+              );
+            }
+          }
+        }
+      }, Array.from({ length: 16 }, (_, i) => i), "16n");
+      
+      sequencerRef.current.start(0);
+      Tone.Transport.start();
+      
+      setIsPlaying(true);
+    } else {
+      Tone.Transport.stop();
+      if (sequencerRef.current) {
+        sequencerRef.current.stop();
+      }
+      setPlaybackStep(-1);
+      setIsPlaying(false);
+    }
+  };
+  
+  // Update step note
+  const setStepNote = (note) => {
+    const newSteps = [...currentPattern.steps];
+    newSteps[currentStep] = {
+      ...newSteps[currentStep],
+      note: note,
+      isRest: false
+    };
+    updatePattern({ steps: newSteps });
+    
+    // Preview the note if not playing
+    if (synthRef.current && !isPlaying) {
+      synthRef.current.triggerAttackRelease(note, "8n");
+    }
+    
+    // Auto-advance to next step
+    nextStep();
+  };
+  
+  // Set rest for current step
+  const setRest = () => {
+    const newSteps = [...currentPattern.steps];
+    newSteps[currentStep] = {
+      ...newSteps[currentStep],
+      isRest: true
+    };
+    updatePattern({ steps: newSteps });
+    nextStep();
+  };
+  
+  // Toggle accent for current step
+  const toggleAccent = () => {
+    const newSteps = [...currentPattern.steps];
+    newSteps[currentStep] = {
+      ...newSteps[currentStep],
+      accent: !newSteps[currentStep].accent
+    };
+    updatePattern({ steps: newSteps });
+  };
+  
+  // Toggle slide for current step
+  const toggleSlide = () => {
+    const newSteps = [...currentPattern.steps];
+    newSteps[currentStep] = {
+      ...newSteps[currentStep],
+      slide: !newSteps[currentStep].slide
+    };
+    updatePattern({ steps: newSteps });
+  };
+  
+  // Move to next step
+  const nextStep = () => {
+    setCurrentStep((prev) => (prev + 1) % 16);
+  };
+  
+  // Move to previous step
+  const prevStep = () => {
+    setCurrentStep((prev) => (prev - 1 + 16) % 16);
+  };
+  
+  // Update synth settings
+  const updateSynthSetting = (setting, value) => {
+    updatePattern({ 
+      settings: {
+        ...currentPattern.settings,
+        [setting]: value
+      }
+    });
+  };
+  
+  // Load pattern without stopping playback
+  const loadPattern = (pattern) => {
+    // Update pattern without stopping
+    updatePattern({
+      _id: pattern._id,
+      name: pattern.name,
+      steps: pattern.steps,
+      settings: {
+        ...pattern.settings,
+        // Ensure crunch exists even in older patterns
+        crunch: pattern.settings.crunch || 0
+      }
+    });
+    
+    setSelectedPattern(pattern._id);
+    // Don't reset current step if we're playing
+    if (!isPlaying) {
+      setCurrentStep(0);
+    }
+  };
+  
+  // Create new pattern
+  const createNewPattern = () => {
+    updatePattern({
+      name: "New Pattern",
+      steps: Array(16).fill().map(() => ({
+        note: "C3",
+        isRest: false,
+        accent: false,
+        slide: false
+      })),
+      settings: {
+        waveform: "sawtooth",
+        cutoff: 800,
+        resonance: 10,
+        envMod: 50,
+        decay: 300,
+        accentAmount: 70,
+        crunch: 0,
+        tempo: 120
+      }
+    });
+    setSelectedPattern(null);
+    if (!isPlaying) {
+      setCurrentStep(0);
+    }
+  };
+  
+  // Toggle between pitch and time modes
+  const toggleProgramMode = () => {
+    setProgramMode(prev => prev === "pitch" ? "time" : "pitch");
+  };
+  
+  // Generate pattern with AI
+  const generatePattern = async () => {
+    try {
+      const result = await callAI("Create a TB-303 acid bassline pattern with 16 steps. Include information about which steps have notes, which are rests, which have accents, and which have slides. Make it sound like a classic acid house pattern.", {
+        schema: {
+          properties: {
+            steps: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  note: { type: "string" },
+                  isRest: { type: "boolean" },
+                  accent: { type: "boolean" },
+                  slide: { type: "boolean" }
+                }
+              }
+            },
+            description: { type: "string" }
+          }
+        }
+      });
+      
+      const patternData = JSON.parse(result);
+      
+      // Ensure we have exactly 16 steps
+      const steps = patternData.steps.slice(0, 16);
+      while (steps.length < 16) {
+        steps.push({ note: "C3", isRest: true, accent: false, slide: false });
+      }
+      
+      updatePattern({
+        name: "AI Generated Pattern",
+        steps: steps,
+        settings: currentPattern.settings,
+        description: patternData.description
+      });
+      
+      if (!isPlaying) {
+        setCurrentStep(0);
+      }
+    } catch (error) {
+      console.error("Error generating pattern:", error);
+    }
+  };
+  
+  // Demo pattern examples
+  const loadDemoPatterns = async () => {
+    const demoPatterns = [
+      {
+        name: "Classic Acid",
+        steps: [
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: true },
+          { note: "D#2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "F2", isRest: false, accent: false, slide: true },
+          { note: "G2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "D#2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: true },
+          { note: "D#2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "G2", isRest: false, accent: false, slide: false },
+          { note: "F2", isRest: false, accent: false, slide: true },
+          { note: "D#2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: false }
+        ],
+        settings: {
+          waveform: "sawtooth",
+          cutoff: 800,
+          resonance: 20,
+          envMod: 70,
+          decay: 300,
+          accentAmount: 80,
+          crunch: 20,
+          tempo: 135
+        }
+      },
+      {
+        name: "Funky Bassline",
+        steps: [
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: true, accent: false, slide: false },
+          { note: "G1", isRest: false, accent: false, slide: true },
+          { note: "A#1", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: true, accent: false, slide: false },
+          { note: "G1", isRest: false, accent: true, slide: false },
+          { note: "G1", isRest: true, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: true, accent: false, slide: false },
+          { note: "G1", isRest: false, accent: false, slide: true },
+          { note: "A#1", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: false },
+          { note: "D#2", isRest: false, accent: true, slide: true },
+          { note: "D2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false }
+        ],
+        settings: {
+          waveform: "square",
+          cutoff: 600,
+          resonance: 15,
+          envMod: 60,
+          decay: 200,
+          accentAmount: 70,
+          crunch: 40,
+          tempo: 125
+        }
+      },
+      {
+        name: "Distorted Acid",
+        steps: [
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: false },
+          { note: "F2", isRest: false, accent: true, slide: false },
+          { note: "F2", isRest: false, accent: false, slide: true },
+          { note: "G2", isRest: false, accent: false, slide: false },
+          { note: "G2", isRest: false, accent: true, slide: false },
+          { note: "G#2", isRest: false, accent: false, slide: true },
+          { note: "A#2", isRest: false, accent: true, slide: false },
+          { note: "C2", isRest: false, accent: false, slide: false },
+          { note: "C2", isRest: false, accent: true, slide: false },
+          { note: "F2", isRest: false, accent: false, slide: false },
+          { note: "F2", isRest: false, accent: true, slide: true },
+          { note: "G2", isRest: false, accent: false, slide: false },
+          { note: "G#2", isRest: false, accent: true, slide: true },
+          { note: "G2", isRest: false, accent: false, slide: false },
+          { note: "F2", isRest: false, accent: true, slide: false }
+        ],
+        settings: {
+          waveform: "sawtooth",
+          cutoff: 500,
+          resonance: 25,
+          envMod: 80,
+          decay: 250,
+          accentAmount: 90,
+          crunch: 70,
+          tempo: 140
+        }
+      }
+    ];
+    
+    for (const pattern of demoPatterns) {
+      await database.put(pattern);
+    }
+  };
+  
+  const noteOptions = [
+    "C1", "C#1", "D1", "D#1", "E1", "F1", "F#1", "G1", "G#1", "A1", "A#1", "B1",
+    "C2", "C#2", "D2", "D#2", "E2", "F2", "F#2", "G2", "G#2", "A2", "A#2", "B2",
+    "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3"
+  ];
+  
+  // Group the notes by octave for the pitch buttons
+  const notesByOctave = {
+    1: noteOptions.filter(note => note.includes("1")),
+    2: noteOptions.filter(note => note.includes("2")),
+    3: noteOptions.filter(note => note.includes("3"))
+  };
+  
+  // Split step indicators into two rows for mobile
+  const firstRow = Array.from({ length: 8 }, (_, i) => i);
+  const secondRow = Array.from({ length: 8 }, (_, i) => i + 8);
+  
+  return (
+    <div className="min-h-screen p-4 bg-gradient-to-r from-gray-800 to-gray-900 text-white">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-6 text-center">
+          <h1 className="text-4xl font-bold mb-2 text-[#ff70a6]">TB-303 Step Sequencer</h1>
+          <p className="text-md italic text-gray-300 mb-4">
+            Create classic acid basslines with authentic TB-303 step programming workflow
+          </p>
+        </div>
+        
+        <div className="bg-[#242424] rounded-lg border-4 border-[#ffd670] p-5 mb-6 shadow-xl">
+          {/* Main display area showing current step */}
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <div className="flex-1 bg-black border-4 border-[#70d6ff] rounded-md p-4 flex items-center justify-center text-center">
+              <div>
+                <div className="text-5xl font-bold text-[#e9ff70] mb-2">
+                  {currentStep + 1}
+                </div>
+                <div className="font-mono text-lg">
+                  {programMode === "pitch" ? "PITCH MODE" : "TIME MODE"}
+                  {isPlaying && <span className="ml-2 animate-pulse text-[#ff70a6]">● LIVE</span>}
+                </div>
+                <div className="mt-2 text-2xl">
+                  {currentPattern.steps[currentStep].isRest ? (
+                    <span className="text-red-500">REST</span>
+                  ) : (
+                    <span className="text-[#ff70a6]">{currentPattern.steps[currentStep].note}</span>
+                  )}
+                  {currentPattern.steps[currentStep].accent && 
+                    <span className="ml-2 px-2 py-0.5 bg-[#ffd670] text-black rounded-md text-sm">ACC</span>}
+                  {currentPattern.steps[currentStep].slide && 
+                    <span className="ml-2 px-2 py-0.5 bg-[#70d6ff] text-black rounded-md text-sm">SLD</span>}
+                </div>
+              </div>
+            </div>
+            
+            {/* Control buttons */}
+            <div className="flex flex-1 flex-col gap-2">
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={toggleProgramMode}
+                  className="flex-1 py-3 px-4 bg-[#e9ff70] text-black font-bold rounded hover:bg-yellow-300 transition"
+                >
+                  {programMode === "pitch" ? "Switch to TIME" : "Switch to PITCH"}
+                </button>
+                <button
+                  onClick={togglePlay}
+                  className={`flex-1 py-3 px-4 text-white rounded font-bold transition ${
+                    isPlaying ? "bg-[#ff9770] hover:bg-orange-500" : "bg-[#ff70a6] hover:bg-pink-600"
+                  }`}
+                >
+                  {isPlaying ? "STOP" : "PLAY"}
+                </button>
+              </div>
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={currentPattern.name}
+                  onChange={(e) => updatePattern({ name: e.target.value })}
+                  className="flex-grow px-3 py-2 bg-black text-white border-2 border-[#70d6ff] rounded"
+                  placeholder="Pattern Name"
+                />
+                <button
+                  onClick={() => savePattern()}
+                  className="px-4 py-2 bg-[#70d6ff] text-black rounded font-bold hover:bg-blue-400 transition"
+                >
+                  SAVE
+                </button>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={createNewPattern}
+                  className="flex-1 px-4 py-2 bg-[#ff9770] text-black rounded font-bold hover:bg-orange-400 transition"
+                >
+                  NEW
+                </button>
+                <button
+                  onClick={generatePattern}
+                  className="flex-1 px-4 py-2 bg-[#ffd670] text-black rounded font-bold hover:bg-yellow-400 transition"
+                >
+                  AI GENERATE
+                </button>
+                <button
+                  onClick={loadDemoPatterns}
+                  className="flex-1 px-4 py-2 bg-[#e9ff70] text-black rounded font-bold hover:bg-lime-300 transition"
+                >
+                  DEMO
+                </button>
+              </div>
+              
+              {patternUpdated && isPlaying && (
+                <div className="text-center text-sm text-[#70d6ff] animate-pulse mt-1">
+                  Pattern changes will apply on the next step
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Step navigation */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={prevStep}
+              className="px-6 py-2 bg-[#242424] border-2 border-[#70d6ff] text-white rounded hover:bg-gray-700 transition font-bold"
+            >
+              BACK
+            </button>
+            <div className="flex-1">
+              {/* Step indicators split into two rows */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-center gap-1 mb-1">
+                  {firstRow.map((i) => (
+                    <div 
+                      key={i}
+                      className={`h-4 w-6 md:w-8 rounded-full cursor-pointer ${
+                        i === currentStep
+                          ? "bg-[#ff70a6]"
+                          : i === playbackStep
+                          ? "bg-[#70d6ff]"
+                          : currentPattern.steps[i].isRest
+                          ? "bg-gray-600"
+                          : "bg-[#ffd670]"
+                      }`}
+                      onClick={() => setCurrentStep(i)}
+                    />
+                  ))}
+                </div>
+                <div className="flex justify-center gap-1">
+                  {secondRow.map((i) => (
+                    <div 
+                      key={i}
+                      className={`h-4 w-6 md:w-8 rounded-full cursor-pointer ${
+                        i === currentStep
+                          ? "bg-[#ff70a6]"
+                          : i === playbackStep
+                          ? "bg-[#70d6ff]"
+                          : currentPattern.steps[i].isRest
+                          ? "bg-gray-600"
+                          : "bg-[#ffd670]"
+                      }`}
+                      onClick={() => setCurrentStep(i)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={nextStep}
+              className="px-6 py-2 bg-[#242424] border-2 border-[#ff70a6] text-white rounded hover:bg-gray-700 transition font-bold"
+            >
+              NEXT
+            </button>
+          </div>
+          
+          {/* Synth Controls - NOW ABOVE THE NOTE ENTRY */}
+          <div className="mb-6">
+            <h3 className="text-xl font-bold mb-3 text-[#ff70a6]">Synthesizer</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-black p-3 rounded border-2 border-[#70d6ff] flex flex-col">
+                <label className="text-center text-sm mb-2">CUTOFF</label>
+                <input
+                  type="range"
+                  min="100"
+                  max="5000"
+                  value={currentPattern.settings.cutoff}
+                  onChange={(e) => updateSynthSetting("cutoff", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.cutoff} Hz</span>
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#ff9770] flex flex-col">
+                <label className="text-center text-sm mb-2">RESONANCE</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="30"
+                  value={currentPattern.settings.resonance}
+                  onChange={(e) => updateSynthSetting("resonance", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.resonance}</span>
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#ffd670] flex flex-col">
+                <label className="text-center text-sm mb-2">ENV MOD</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={currentPattern.settings.envMod}
+                  onChange={(e) => updateSynthSetting("envMod", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.envMod}%</span>
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#e9ff70] flex flex-col">
+                <label className="text-center text-sm mb-2">DECAY</label>
+                <input
+                  type="range"
+                  min="50"
+                  max="1000"
+                  value={currentPattern.settings.decay}
+                  onChange={(e) => updateSynthSetting("decay", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.decay} ms</span>
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#ff70a6] flex flex-col">
+                <label className="text-center text-sm mb-2">ACCENT</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={currentPattern.settings.accentAmount}
+                  onChange={(e) => updateSynthSetting("accentAmount", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.accentAmount}%</span>
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#ff9770] flex flex-col">
+                <label className="text-center text-sm mb-2">CRUNCH</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={currentPattern.settings.crunch}
+                  onChange={(e) => updateSynthSetting("crunch", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.crunch}%</span>
+                {currentPattern.settings.crunch > 0 && (
+                  <span className="text-center text-xs text-[#ff70a6]">Double on accents!</span>
+                )}
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#70d6ff] flex flex-col">
+                <label className="text-center text-sm mb-2">TEMPO</label>
+                <input
+                  type="range"
+                  min="60"
+                  max="200"
+                  value={currentPattern.settings.tempo}
+                  onChange={(e) => updateSynthSetting("tempo", parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-center text-xs mt-1">{currentPattern.settings.tempo} BPM</span>
+              </div>
+              
+              <div className="bg-black p-3 rounded border-2 border-[#ffd670] flex flex-col">
+                <label className="text-center text-sm mb-2">WAVEFORM</label>
+                <select
+                  value={currentPattern.settings.waveform}
+                  onChange={(e) => updateSynthSetting("waveform", e.target.value)}
+                  className="w-full px-2 py-2 bg-gray-800 text-white border border-gray-600 rounded mt-1 text-sm"
+                >
+                  <option value="sawtooth">SAWTOOTH</option>
+                  <option value="square">SQUARE</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          {/* Programming interface - changes based on mode */}
+          {programMode === "pitch" ? (
+            <div className="mb-6">
+              <h3 className="text-xl font-bold mb-3 text-[#ffd670]">Note Entry</h3>
+              <div className="flex flex-col gap-4">
+                {Object.entries(notesByOctave).map(([octave, notes]) => (
+                  <div key={octave} className="bg-black p-3 rounded border-2 border-[#70d6ff]">
+                    <div className="text-center text-sm mb-2 font-bold">OCTAVE {octave}</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {notes.map(note => {
+                        const noteName = note.replace(/[0-9]/g, '');
+                        return (
+                          <button
+                            key={note}
+                            onClick={() => setStepNote(note)}
+                            className={`py-3 font-bold rounded border-2 ${
+                              currentPattern.steps[currentStep].note === note
+                                ? "bg-[#ff70a6] border-[#ffd670] text-white"
+                                : "bg-gray-700 border-gray-600 hover:bg-gray-600"
+                            }`}
+                          >
+                            {noteName}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-4">
+                <button 
+                  onClick={setRest}
+                  className={`w-full py-3 font-bold rounded text-lg ${
+                    currentPattern.steps[currentStep].isRest
+                      ? "bg-[#ff9770] text-black"
+                      : "bg-gray-700 text-white hover:bg-gray-600"
+                  }`}
+                >
+                  REST
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6">
+              <h3 className="text-xl font-bold mb-3 text-[#ffd670]">Time/Function</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={toggleAccent}
+                  className={`py-4 font-bold rounded-lg text-lg ${
+                    currentPattern.steps[currentStep].accent
+                      ? "bg-[#ffd670] text-black"
+                      : "bg-gray-700 text-white hover:bg-gray-600"
+                  }`}
+                  disabled={currentPattern.steps[currentStep].isRest}
+                >
+                  ACCENT
+                </button>
+                <button 
+                  onClick={toggleSlide}
+                  className={`py-4 font-bold rounded-lg text-lg ${
+                    currentPattern.steps[currentStep].slide
+                      ? "bg-[#70d6ff] text-black"
+                      : "bg-gray-700 text-white hover:bg-gray-600"
+                  }`}
+                  disabled={currentPattern.steps[currentStep].isRest}
+                >
+                  SLIDE
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Saved Patterns and Instructions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Saved Patterns */}
+          <div className="bg-[#242424] rounded-lg border-4 border-[#70d6ff] p-4 shadow-xl">
+            <h3 className="text-xl font-bold mb-2 text-[#70d6ff]">Saved Patterns</h3>
+            <div className="max-h-60 overflow-y-auto p-2 bg-black rounded border-2 border-[#ff70a6]">
+              {savedPatterns.length === 0 ? (
+                <p className="text-gray-400 italic">No saved patterns yet...</p>
+              ) : (
+                <ul>
+                  {savedPatterns.map((pattern) => (
+                    <li key={pattern._id} className="mb-1">
+                      <button
+                        onClick={() => loadPattern(pattern)}
+                        className={`w-full text-left px-2 py-1 rounded transition ${
+                          selectedPattern === pattern._id
+                            ? "bg-[#ff70a6] text-white"
+                            : "hover:bg-gray-700"
+                        }`}
+                      >
+                        {pattern.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          
+          {/* Instructions */}
+          <div className="bg-[#242424] rounded-lg border-4 border-[#ff70a6] p-4 shadow-xl">
+            <h3 className="text-xl font-bold mb-2 text-[#ff70a6]">How to Program</h3>
+            <div className="text-sm text-gray-300 space-y-2">
+              <p className="italic">
+                <strong>Authentic TB-303 programming</strong> is done in two separate modes. First, enter notes in <em>Pitch Mode</em>, then add accents and slides in <em>Time Mode</em>.
+              </p>
+              <p className="italic">
+                <strong>Live Pattern Editing:</strong> Change patterns on the fly while playback continues! Load patterns, modify notes, accents, and slides, or adjust synth parameters in real-time.
+              </p>
+              <p className="italic">
+                <strong>Performance Ready:</strong> The synthesizer section is now positioned above note entry for easy manipulation during playback. Tweak filter cutoff, resonance, and crunch controls while the pattern plays!
+              </p>
+              <p className="italic">
+                <strong>Crunch Control:</strong> The <em>Crunch</em> slider adds distortion with <em>double intensity on accented notes</em>. Perfect for aggressive acid lines.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>

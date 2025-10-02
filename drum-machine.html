@@ -1,0 +1,1396 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Made on Vibes DIY</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useRef, useEffect, useCallback } from "react"
+import { useFireproof } from "use-fireproof"
+import { callAI } from "call-ai"
+
+export default function App() {
+  const { database, useLiveQuery, useDocument } = useFireproof("drum-machine-stable-v5")
+  
+  const [audioContext, setAudioContext] = useState(null)
+  const [audioBuffers, setAudioBuffers] = useState({})
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentStep, setCurrentStep] = useState(-1)
+  const [dragOverTrack, setDragOverTrack] = useState(null)
+  const [statusMessage, setStatusMessage] = useState("Click anywhere to start audio.")
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [streamingText, setStreamingText] = useState("")
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false)
+  const [mutedTracks, setMutedTracks] = useState({})
+  const [soloTracks, setSoloTracks] = useState({})
+  
+  const intervalRef = useRef(null)
+  const stepCounterRef = useRef(0)
+  const currentTracksRef = useRef({})
+  const parametersRef = useRef({})
+  const audioBuffersRef = useRef({})
+  const mutedTracksRef = useRef({})
+  const soloTracksRef = useRef({})
+  const nextStepTimeRef = useRef(0)
+  const audioContextRef = useRef(null)
+  const isPlayingRef = useRef(false)
+  const currentTempoRef = useRef(120)
+  const lookAheadTime = useRef(16.67)
+  const scheduleAheadTime = useRef(0.1)
+
+  const trackOrder = ['kick', 'snare', 'closedhat', 'openhat', 'clap', 'crash', 'cowbell', 'shaker']
+  
+  const trackConfig = {
+    kick: { name: "KICK", color: "#ff70a6" },
+    snare: { name: "SNARE", color: "#70d6ff" },
+    closedhat: { name: "CLOSED HAT", color: "#e9ff70" },
+    openhat: { name: "OPEN HAT", color: "#ffd670" },
+    clap: { name: "HAND CLAP", color: "#ff9770" },
+    crash: { name: "CRASH", color: "#ff70a6" },
+    cowbell: { name: "COWBELL", color: "#70d6ff" },
+    shaker: { name: "SHAKER", color: "#ffd670" }
+  }
+
+  // Default saved patterns
+  const defaultSavedPatterns = [
+    {
+      name: "Classic Hip-Hop",
+      tempo: 90,
+      tracks: {
+        kick: [true, false, false, true, false, false, true, false, true, false, false, false, false, false, true, false],
+        snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        closedhat: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
+        openhat: Array(16).fill(false), 
+        clap: Array(16).fill(false), 
+        crash: Array(16).fill(false), 
+        cowbell: Array(16).fill(false), 
+        shaker: Array(16).fill(false)
+      },
+      levels: { kick: 88, snare: 80, closedhat: 60, openhat: 65, clap: 70, crash: 70, cowbell: 50, shaker: 90 },
+      tune: { kick: 0, snare: 0, closedhat: 0, openhat: 0, clap: 0, crash: 0, cowbell: 0, shaker: 0 },
+      decay: { kick: 70, snare: 90, closedhat: 15, openhat: 70, clap: 40, crash: 80, cowbell: 30, shaker: 90 },
+      type: "drum-pattern"
+    },
+    {
+      name: "Electro Funk",
+      tempo: 120,
+      tracks: {
+        kick: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
+        snare: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        closedhat: [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false],
+        openhat: Array(16).fill(false),
+        clap: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
+        crash: Array(16).fill(false), 
+        cowbell: Array(16).fill(false), 
+        shaker: Array(16).fill(false)
+      },
+      levels: { kick: 90, snare: 80, closedhat: 65, openhat: 60, clap: 75, crash: 70, cowbell: 50, shaker: 90 },
+      tune: { kick: 0, snare: 0, closedhat: 0, openhat: 0, clap: 0, crash: 0, cowbell: 0, shaker: 0 },
+      decay: { kick: 55, snare: 90, closedhat: 18, openhat: 70, clap: 35, crash: 80, cowbell: 30, shaker: 90 },
+      type: "drum-pattern"
+    }
+  ]
+
+  const { doc: currentPattern, merge: mergePattern, save: savePattern } = useDocument({
+    name: "New Pattern",
+    tempo: 120,
+    tracks: Object.fromEntries(trackOrder.map(t => [t, Array(16).fill(false)])),
+    levels: Object.fromEntries(trackOrder.map(t => [t, t === 'kick' ? 80 : t === 'snare' ? 75 : t === 'shaker' ? 90 : 65])),
+    tune: Object.fromEntries(trackOrder.map(t => [t, 0])),
+    decay: Object.fromEntries(trackOrder.map(t => [t, t === 'kick' ? 60 : t === 'snare' ? 90 : t === 'closedhat' ? 25 : t === 'shaker' ? 90 : 50])),
+    type: "drum-pattern",
+    _files: {}
+  })
+
+  const { doc: aiRequest, merge: mergeAiRequest, submit: submitAiRequest } = useDocument({
+    prompt: "",
+    genre: "",
+    bpm: 120,
+    style: "",
+    type: "ai-request"
+  })
+
+  const { docs: patterns } = useLiveQuery('type', { 
+    key: 'drum-pattern',
+    descending: true,
+    limit: 20
+  })
+
+  // Get colors for step groups
+  const getStepGroupColors = (groupIndex) => {
+    if (groupIndex === 0 || groupIndex === 2) {
+      return {
+        bg: 'rgba(255, 215, 112, 0.15)',
+        border: '#ffd670',
+        text: '#ffd670'
+      }
+    } else {
+      return {
+        bg: 'rgba(112, 214, 255, 0.15)',
+        border: '#70d6ff',
+        text: '#70d6ff'
+      }
+    }
+  }
+
+  // Keep audio buffers ref in sync for real-time access during playback
+  useEffect(() => {
+    audioBuffersRef.current = audioBuffers
+  }, [audioBuffers])
+
+  // Keep mute/solo refs in sync
+  useEffect(() => {
+    mutedTracksRef.current = mutedTracks
+    soloTracksRef.current = soloTracks
+  }, [mutedTracks, soloTracks])
+
+  // Update refs when pattern changes
+  useEffect(() => {
+    currentTracksRef.current = currentPattern.tracks
+    parametersRef.current = {
+      levels: currentPattern.levels,
+      tune: currentPattern.tune,
+      decay: currentPattern.decay
+    }
+    currentTempoRef.current = currentPattern.tempo
+  }, [currentPattern.tracks, currentPattern.levels, currentPattern.tune, currentPattern.decay, currentPattern.tempo])
+
+  // Keep isPlayingRef in sync with isPlaying state
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+  }, [isPlaying])
+
+  // Auto-load custom samples when pattern changes
+  useEffect(() => {
+    const loadCustomSamples = async () => {
+      if (!audioContextRef.current || !currentPattern._files) return
+      
+      setIsLoadingSamples(true)
+      let loadedCount = 0
+      
+      for (const [trackName, fileMetadata] of Object.entries(currentPattern._files)) {
+        if (!fileMetadata || !trackOrder.includes(trackName)) continue
+        
+        try {
+          // Use Fireproof's .file() method to get the actual File object
+          const file = await fileMetadata.file()
+          if (file) {
+            const arrayBuffer = await file.arrayBuffer()
+            const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
+            
+            // Update both state and ref immediately
+            setAudioBuffers(prev => ({ ...prev, [trackName]: audioBuffer }))
+            audioBuffersRef.current = { ...audioBuffersRef.current, [trackName]: audioBuffer }
+            
+            loadedCount++
+          }
+        } catch (error) {
+          console.error(`Failed to load custom sample for ${trackName}:`, error)
+        }
+      }
+      
+      if (loadedCount > 0) {
+        setStatusMessage(`Loaded ${loadedCount} custom samples automatically!`)
+      }
+      
+      setIsLoadingSamples(false)
+    }
+    
+    // Small delay to ensure audio context is ready
+    const timeoutId = setTimeout(loadCustomSamples, 100)
+    return () => clearTimeout(timeoutId)
+  }, [currentPattern._files])
+
+  // Initialize default patterns
+  useEffect(() => {
+    const initDefaultPatterns = async () => {
+      if (patterns.length === 0) {
+        for (const pattern of defaultSavedPatterns) {
+          await database.put({
+            ...pattern,
+            _id: `default-${pattern.name.toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '')}`
+          })
+        }
+      }
+    }
+    initDefaultPatterns()
+  }, [patterns.length, database])
+
+  // Initialize audio context
+  const initAudio = useCallback(async () => {
+    if (audioContext) return audioContext
+
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+      setAudioContext(ctx)
+      audioContextRef.current = ctx
+      loadSynthSounds(ctx)
+      setStatusMessage("Ready. Click PLAY to start or use AI generation.")
+      return ctx
+    } catch (e) {
+      console.error("Audio context failed:", e)
+      setStatusMessage("Web Audio API not supported.")
+      return null
+    }
+  }, [audioContext])
+
+  // Create stable synthetic drum sounds
+  const loadSynthSounds = (ctx) => {
+    const createBuffer = (config) => {
+      const { duration, frequency, type, noiseAmount = 0 } = config
+      const sampleRate = ctx.sampleRate
+      const length = Math.floor(sampleRate * duration)
+      const buffer = ctx.createBuffer(1, length, sampleRate)
+      const data = buffer.getChannelData(0)
+      
+      for (let i = 0; i < length; i++) {
+        const t = i / sampleRate
+        const env = Math.exp(-t * (config.decay || 5))
+        let sample = 0
+        
+        if (type === 'kick') {
+          const pitch = frequency * (1 + Math.exp(-t * 50))
+          sample = Math.sin(pitch * 2 * Math.PI * t) * env
+        } else if (type === 'snare') {
+          const noise = (Math.random() * 2 - 1) * noiseAmount
+          const tone = Math.sin(frequency * 2 * Math.PI * t) * (1 - noiseAmount)
+          sample = (noise + tone) * env
+        } else if (type === 'hat') {
+          sample = (Math.random() * 2 - 1) * Math.exp(-t * config.decay)
+          if (frequency > 1000) {
+            sample *= Math.sin(frequency * 2 * Math.PI * t)
+          }
+        } else if (type === 'clap') {
+          // Realistic hand clap with multiple transients
+          const baseNoise = (Math.random() * 2 - 1) * 0.7
+          
+          // Create multiple quick hits to simulate fingers hitting palm
+          const clapTransients = [0.002, 0.007, 0.013, 0.022] // Timing of finger impacts
+          let transientAmp = 0
+          
+          for (const transientTime of clapTransients) {
+            if (Math.abs(t - transientTime) < 0.003) {
+              // Sharp transient with exponential decay
+              const transientEnv = Math.exp(-(t - transientTime) * 800)
+              transientAmp += transientEnv * (0.8 + Math.random() * 0.4)
+            }
+          }
+          
+          // High-frequency emphasis for finger snap character
+          const highFreq = Math.sin(frequency * 8 * 2 * Math.PI * t) * 0.3
+          const midFreq = Math.sin(frequency * 2 * 2 * Math.PI * t) * 0.2
+          
+          // Combine noise, transients, and tonal elements
+          sample = (baseNoise + transientAmp + highFreq + midFreq) * env
+          
+          // Add some reverb-like comb filtering
+          if (i > sampleRate * 0.01) {
+            const delayIndex = Math.floor(i - sampleRate * 0.008)
+            if (delayIndex >= 0) {
+              sample += data[delayIndex] * 0.15
+            }
+          }
+          
+        } else if (type === 'shaker') {
+          // Realistic shaker with grain texture and high-frequency content
+          let shakerSample = 0
+          
+          // Multiple high-frequency noise components for grain texture
+          for (let harmonic = 1; harmonic <= 8; harmonic++) {
+            const freq = frequency * harmonic
+            const amplitude = 1 / (harmonic * harmonic) // Roll off higher harmonics
+            
+            // Modulated noise for grain effect
+            const grainRate = 150 + harmonic * 50 // Varies grain rate per harmonic
+            const grainMod = 0.5 + 0.5 * Math.sin(grainRate * 2 * Math.PI * t)
+            const noise = (Math.random() * 2 - 1) * grainMod * amplitude
+            
+            shakerSample += noise
+          }
+          
+          // Add some metallic resonance
+          const metallic = Math.sin(frequency * 4 * 2 * Math.PI * t) * 0.1
+          const metallic2 = Math.sin(frequency * 6.7 * 2 * Math.PI * t) * 0.05
+          
+          // Amplitude modulation for realistic shake rhythm
+          const shakeRate = 30 // Hz - typical shake frequency
+          const shakeMod = 0.7 + 0.3 * Math.sin(shakeRate * 2 * Math.PI * t)
+          
+          sample = (shakerSample + metallic + metallic2) * env * shakeMod
+          
+          // High-pass characteristic
+          if (frequency < 8000) {
+            sample *= 0.3 // Reduce low frequencies
+          }
+          
+        } else {
+          sample = Math.sin(frequency * 2 * Math.PI * t) * env
+        }
+        
+        data[i] = Math.max(-1, Math.min(1, sample * 0.5))
+      }
+      return buffer
+    }
+
+    const buffers = {
+      kick: createBuffer({ frequency: 60, duration: 0.4, type: 'kick', decay: 8 }),
+      snare: createBuffer({ frequency: 200, duration: 0.3, type: 'snare', decay: 12, noiseAmount: 0.7 }),
+      closedhat: createBuffer({ frequency: 8000, duration: 0.1, type: 'hat', decay: 25 }),
+      openhat: createBuffer({ frequency: 6000, duration: 0.4, type: 'hat', decay: 8 }),
+      clap: createBuffer({ frequency: 1200, duration: 0.25, type: 'clap', decay: 18 }),
+      crash: createBuffer({ frequency: 4000, duration: 1.0, type: 'hat', decay: 3 }),
+      cowbell: createBuffer({ frequency: 800, duration: 0.3, type: 'default', decay: 6 }),
+      shaker: createBuffer({ frequency: 10000, duration: 0.2, type: 'shaker', decay: 15 })
+    }
+    
+    setAudioBuffers(buffers)
+    audioBuffersRef.current = buffers
+  }
+
+  // Check if track should play based on solo/mute logic
+  const shouldTrackPlay = useCallback((trackName) => {
+    const muted = mutedTracksRef.current
+    const solo = soloTracksRef.current
+    
+    // If track is muted, don't play
+    if (muted[trackName]) return false
+    
+    // If any track is solo'd, only play solo'd tracks
+    const hasSoloTracks = Object.values(solo).some(isSolo => isSolo)
+    if (hasSoloTracks) {
+      return solo[trackName] === true
+    }
+    
+    // If no solo tracks, play unless muted
+    return true
+  }, [])
+
+  // Sample playback with mute/solo logic
+  const playSample = useCallback((trackName, when = 0, respectMuteSolo = true) => {
+    const ctx = audioContextRef.current
+    const currentAudioBuffers = audioBuffersRef.current
+    if (!ctx || !currentAudioBuffers[trackName]) return
+
+    // Check mute/solo logic if requested
+    if (respectMuteSolo && !shouldTrackPlay(trackName)) return
+
+    try {
+      const source = ctx.createBufferSource()
+      const gainNode = ctx.createGain()
+      
+      source.buffer = currentAudioBuffers[trackName]
+      
+      const params = parametersRef.current
+      const velocity = (params.levels && params.levels[trackName] || 65) / 100
+      const tune = params.tune && params.tune[trackName] || 0
+      const decay = params.decay && params.decay[trackName] || 50
+      
+      source.playbackRate.value = Math.pow(2, tune / 12)
+      
+      const startTime = when || ctx.currentTime
+      const duration = Math.max(0.05, (decay / 100) * source.buffer.duration)
+      
+      gainNode.gain.setValueAtTime(velocity, startTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+      
+      source.connect(gainNode)
+      gainNode.connect(ctx.destination)
+      
+      source.start(startTime)
+      source.stop(startTime + duration)
+      
+    } catch (error) {
+      console.error("Sample playback error:", error)
+    }
+  }, [shouldTrackPlay])
+
+  // High-precision scheduler
+  const startSequencer = useCallback(() => {
+    const ctx = audioContextRef.current
+    if (!ctx) return
+
+    setIsPlaying(true)
+    isPlayingRef.current = true
+    stepCounterRef.current = 0
+    setCurrentStep(0)
+    
+    if (intervalRef.current) {
+      clearTimeout(intervalRef.current)
+    }
+    
+    nextStepTimeRef.current = ctx.currentTime
+    
+    const scheduler = () => {
+      if (!isPlayingRef.current || !audioContextRef.current) {
+        return
+      }
+      
+      const currentTime = audioContextRef.current.currentTime
+      
+      while (nextStepTimeRef.current < currentTime + scheduleAheadTime.current) {
+        const step = stepCounterRef.current % 16
+        
+        trackOrder.forEach(track => {
+          const trackData = currentTracksRef.current[track]
+          if (trackData && trackData[step]) {
+            playSample(track, nextStepTimeRef.current, true) // Respect mute/solo during playback
+          }
+        })
+        
+        const stepTime = (60 / currentTempoRef.current) / 4
+        nextStepTimeRef.current += stepTime
+        stepCounterRef.current++
+        
+        setCurrentStep(step)
+      }
+      
+      if (isPlayingRef.current) {
+        intervalRef.current = setTimeout(scheduler, lookAheadTime.current)
+      }
+    }
+    
+    scheduler()
+  }, [playSample])
+
+  // Stop sequencer
+  const stopSequencer = useCallback(() => {
+    isPlayingRef.current = false
+    
+    if (intervalRef.current) {
+      clearTimeout(intervalRef.current)
+      intervalRef.current = null
+    }
+    
+    setIsPlaying(false)
+    setCurrentStep(-1)
+    stepCounterRef.current = 0
+  }, [])
+
+  // Toggle play/stop
+  const togglePlay = async () => {
+    await initAudio()
+    
+    if (isPlaying) {
+      stopSequencer()
+    } else {
+      startSequencer()
+    }
+  }
+
+  // Tempo change handler
+  const handleTempoChange = (newTempo) => {
+    mergePattern({ tempo: parseInt(newTempo) })
+    currentTempoRef.current = parseInt(newTempo)
+  }
+
+  // Toggle step
+  const toggleStep = useCallback((stepIndex, track) => {
+    const newTracks = { ...currentPattern.tracks }
+    
+    if (!newTracks[track]) {
+      newTracks[track] = Array(16).fill(false)
+    }
+    
+    newTracks[track] = [...newTracks[track]]
+    newTracks[track][stepIndex] = !newTracks[track][stepIndex]
+    
+    mergePattern({ tracks: newTracks })
+    currentTracksRef.current = newTracks
+    
+    if (newTracks[track][stepIndex] && !isPlaying) {
+      playSample(track, 0, false) // Don't respect mute/solo for preview clicks
+    }
+  }, [currentPattern.tracks, mergePattern, playSample, isPlaying])
+
+  // Mute/Solo handlers
+  const toggleMute = useCallback((trackName) => {
+    setMutedTracks(prev => ({
+      ...prev,
+      [trackName]: !prev[trackName]
+    }))
+  }, [])
+
+  const toggleSolo = useCallback((trackName) => {
+    setSoloTracks(prev => ({
+      ...prev,
+      [trackName]: !prev[trackName]
+    }))
+  }, [])
+
+  // Handle file uploads with efficient Fireproof storage
+  const handleFileUpload = async (files, trackName) => {
+    if (!files || files.length === 0) return
+    
+    await initAudio()
+    const file = files[0]
+    
+    setStatusMessage(`Loading ${file.name}...`)
+    
+    try {
+      // First decode for immediate playback
+      const arrayBuffer = await file.arrayBuffer()
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
+      
+      // Update audio buffers immediately
+      const newAudioBuffers = { ...audioBuffers, [trackName]: audioBuffer }
+      setAudioBuffers(newAudioBuffers)
+      audioBuffersRef.current = newAudioBuffers
+      
+      // Store file efficiently using Fireproof's _files system
+      const newFiles = { ...currentPattern._files }
+      newFiles[trackName] = file  // Fireproof handles efficient storage
+      mergePattern({ _files: newFiles })
+      
+      setStatusMessage(`${file.name} loaded & saved! Will auto-load on pattern reload.`)
+      
+      // Preview the sound
+      setTimeout(() => playSample(trackName, 0, false), 100)
+      
+    } catch (error) {
+      console.error("Failed to load audio file:", error)
+      setStatusMessage(`Error: Could not load ${file.name}`)
+    }
+  }
+
+  // AI pattern generation
+  const generatePattern = async () => {
+    if (!aiRequest.prompt.trim()) return
+    
+    setIsGenerating(true)
+    setStatusMessage("AI is composing your drum pattern...")
+    setStreamingText("")
+    
+    try {
+      const fullPrompt = `Create a drum pattern: "${aiRequest.prompt}". Genre: ${aiRequest.genre || 'electronic'}. Tempo: ${aiRequest.bpm || 120} BPM. Style: ${aiRequest.style || 'modern'}.`
+      
+      const generator = await callAI(fullPrompt, {
+        stream: true,
+        schema: {
+          properties: {
+            name: { type: "string" },
+            tempo: { type: "integer", minimum: 60, maximum: 200 },
+            description: { type: "string" },
+            genre: { type: "string" },
+            tracks: {
+              type: "object",
+              properties: {
+                kick: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                snare: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                closedhat: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                openhat: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                clap: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                crash: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                cowbell: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 },
+                shaker: { type: "array", items: { type: "boolean" }, minItems: 16, maxItems: 16 }
+              }
+            }
+          }
+        }
+      })
+      
+      let finalResponse = ""
+      for await (const chunk of generator) {
+        setStreamingText(chunk.substring(0, 300) + (chunk.length > 300 ? '...' : ''))
+        finalResponse = chunk
+      }
+      
+      const result = JSON.parse(finalResponse)
+      
+      const validTracks = {}
+      trackOrder.forEach(track => {
+        if (result.tracks[track] && Array.isArray(result.tracks[track]) && result.tracks[track].length === 16) {
+          validTracks[track] = result.tracks[track]
+        } else {
+          validTracks[track] = Array(16).fill(false)
+        }
+      })
+      
+      const newPattern = {
+        name: result.name || `AI ${aiRequest.genre || 'Pattern'}`,
+        tempo: Math.max(60, Math.min(200, result.tempo || aiRequest.bpm || 120)),
+        tracks: validTracks,
+        aiPrompt: aiRequest.prompt,
+        aiDescription: result.description,
+        genre: result.genre || aiRequest.genre,
+        generatedAt: Date.now(),
+        _files: currentPattern._files // Preserve custom samples
+      }
+      
+      mergePattern(newPattern)
+      currentTracksRef.current = validTracks
+      currentTempoRef.current = newPattern.tempo
+      
+      submitAiRequest()
+      setStatusMessage(`Generated: ${result.name} (custom samples preserved)`)
+      
+    } catch (error) {
+      console.error("AI generation failed:", error)
+      setStatusMessage("Generation failed. Try a different prompt.")
+    } finally {
+      setIsGenerating(false)
+      setStreamingText("")
+    }
+  }
+
+  // Demo pattern generation
+  const createDemoPattern = async () => {
+    const demoPrompts = [
+      { prompt: "Heavy trap beat with rolling hi-hats and punchy 808 kicks", genre: "Trap", bpm: 140, style: "modern" },
+      { prompt: "Classic boom-bap hip-hop with vinyl crackle and swing groove", genre: "Hip-Hop", bpm: 90, style: "vintage" },
+      { prompt: "Four-on-the-floor house beat with driving energy for the dancefloor", genre: "House", bpm: 128, style: "club" },
+      { prompt: "Syncopated jazz fusion with complex polyrhythms and brush work", genre: "Jazz", bpm: 110, style: "sophisticated" },
+      { prompt: "Aggressive industrial rhythm with metallic percussion elements", genre: "Industrial", bpm: 135, style: "dark" }
+    ]
+    
+    const randomDemo = demoPrompts[Math.floor(Math.random() * demoPrompts.length)]
+    mergeAiRequest(randomDemo)
+    await generatePattern()
+  }
+
+  // Load pattern with automatic custom sample loading
+  const loadPattern = useCallback((patternDoc) => {
+    const validTracks = {}
+    trackOrder.forEach(track => {
+      if (patternDoc.tracks && patternDoc.tracks[track] && Array.isArray(patternDoc.tracks[track])) {
+        validTracks[track] = patternDoc.tracks[track].slice(0, 16)
+        while (validTracks[track].length < 16) {
+          validTracks[track].push(false)
+        }
+      } else {
+        validTracks[track] = Array(16).fill(false)
+      }
+    })
+    
+    const newPattern = {
+      name: patternDoc.name || "Loaded Pattern",
+      tempo: Math.max(60, Math.min(200, patternDoc.tempo || 120)),
+      tracks: validTracks,
+      levels: { ...currentPattern.levels, ...patternDoc.levels },
+      tune: { ...currentPattern.tune, ...patternDoc.tune },
+      decay: { ...currentPattern.decay, ...patternDoc.decay },
+      _files: patternDoc._files || {},
+      aiPrompt: patternDoc.aiPrompt || "",
+      aiDescription: patternDoc.aiDescription || "",
+      genre: patternDoc.genre || ""
+    }
+    
+    mergePattern(newPattern)
+    currentTracksRef.current = validTracks
+    currentTempoRef.current = newPattern.tempo
+    
+    setStatusMessage(`Loading: ${patternDoc.name} (+ custom samples)`)
+    
+  }, [mergePattern, currentPattern.levels, currentPattern.tune, currentPattern.decay])
+
+  // Create new pattern
+  const createNewPattern = useCallback(() => {
+    const emptyTracks = Object.fromEntries(trackOrder.map(t => [t, Array(16).fill(false)]))
+    
+    const newPattern = {
+      name: "New Pattern",
+      tempo: 120,
+      tracks: emptyTracks,
+      levels: Object.fromEntries(trackOrder.map(t => [t, t === 'kick' ? 80 : t === 'snare' ? 75 : t === 'shaker' ? 90 : 65])),
+      tune: Object.fromEntries(trackOrder.map(t => [t, 0])),
+      decay: Object.fromEntries(trackOrder.map(t => [t, t === 'kick' ? 60 : t === 'snare' ? 90 : t === 'closedhat' ? 25 : t === 'shaker' ? 90 : 50])),
+      _files: {},
+      aiPrompt: "",
+      genre: ""
+    }
+    
+    mergePattern(newPattern)
+    currentTracksRef.current = emptyTracks
+    currentTempoRef.current = 120
+    
+    // Reset mute/solo states
+    setMutedTracks({})
+    setSoloTracks({})
+    
+    if (audioContextRef.current) {
+      loadSynthSounds(audioContextRef.current)
+    }
+    
+    setStatusMessage("New pattern created.")
+  }, [mergePattern])
+
+  // Parameter updates
+  const updateParameter = useCallback((param, track, value) => {
+    if (!parametersRef.current[param]) {
+      parametersRef.current[param] = {}
+    }
+    parametersRef.current[param][track] = value
+    
+    const newParams = { ...currentPattern[param] }
+    newParams[track] = value
+    mergePattern({ [param]: newParams })
+  }, [currentPattern, mergePattern])
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      isPlayingRef.current = false
+      if (intervalRef.current) {
+        clearTimeout(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [])
+
+  // Auto-save
+  useEffect(() => {
+    if (currentPattern.name && currentPattern.name !== "New Pattern" && !isGenerating) {
+      const timeoutId = setTimeout(() => {
+        savePattern()
+      }, 3000)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [currentPattern.tracks, currentPattern.tempo, currentPattern.name, savePattern, isGenerating])
+
+  return (
+    <div 
+      className="min-h-screen p-6"
+      style={{
+        fontFamily: "'Inter', sans-serif",
+        background: 'radial-gradient(circle at 30% 20%, #1a1437 0%, #0a0a0f 50%, #000000 100%)',
+        color: '#e0e0e0',
+        position: 'relative'
+      }}
+      onClick={initAudio}
+    >
+      {/* Animated Stars Background */}
+      <div 
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.8) 1px, transparent 1px),
+            radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+            radial-gradient(circle at 50% 15%, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+            radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0.7) 1px, transparent 1px),
+            radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+            radial-gradient(circle at 90% 45%, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+            radial-gradient(circle at 15% 50%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+            radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+            radial-gradient(circle at 60% 70%, rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+            radial-gradient(circle at 75% 65%, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+            radial-gradient(circle at 25% 80%, rgba(255, 255, 255, 0.7) 1px, transparent 1px),
+            radial-gradient(circle at 55% 85%, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+            radial-gradient(circle at 80% 90%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+            radial-gradient(circle at 5% 75%, rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+            radial-gradient(circle at 95% 5%, rgba(255, 255, 255, 0.8) 1px, transparent 1px)
+          `,
+          backgroundSize: '200px 200px, 300px 300px, 250px 250px, 180px 180px, 220px 220px, 280px 280px, 240px 240px, 320px 320px, 190px 190px, 260px 260px, 210px 210px, 290px 290px, 170px 170px, 340px 340px, 160px 160px',
+          zIndex: -2,
+          animation: 'twinkle 4s infinite alternate'
+        }}
+      />
+
+      {/* Nebula Overlay */}
+      <div 
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(ellipse at 20% 30%, rgba(112, 214, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 70%, rgba(255, 112, 166, 0.08) 0%, transparent 50%),
+            radial-gradient(ellipse at 60% 20%, rgba(233, 255, 112, 0.06) 0%, transparent 40%)
+          `,
+          zIndex: -1
+        }}
+      />
+
+      <style jsx>{`
+        @keyframes twinkle {
+          0% { opacity: 1; }
+          100% { opacity: 0.3; }
+        }
+      `}</style>
+
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <header className="text-center mb-6">
+          <h1 className="text-5xl font-bold mb-2" style={{ color: '#ffd670' }}>
+            Dr. Deas Drum Machine
+          </h1>
+          
+          <p className="text-lg italic text-gray-300 mb-2">
+            Program drum patterns with <strong>a classic step sequencer workflow!</strong>
+          </p>
+          
+          <div className="mb-2" />
+          <div className="mb-2" />
+          <div className="mb-2" />
+          
+          <p className="text-lg italic text-gray-300 mb-4">
+            **Custom samples auto-load** when switching patterns. **Solo & Mute** tracks for mixing control!
+          </p>
+          <div className="text-sm h-5" style={{ color: isLoadingSamples ? '#e9ff70' : '#ff70a6' }}>
+            {isLoadingSamples ? "🔄 Loading custom samples..." : statusMessage}
+          </div>
+        </header>
+
+        {/* Main Container */}
+        <main 
+          className="rounded-lg p-6 shadow-2xl"
+          style={{
+            backgroundColor: 'rgba(36, 36, 36, 0.85)',
+            border: '4px solid #ffd670',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          {/* AI Generation Section */}
+          <div 
+            className="mb-6 p-6 rounded-lg"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              border: '2px solid #70d6ff',
+              backdropFilter: 'blur(5px)'
+            }}
+          >
+            <h3 className="text-lg font-bold mb-4" style={{ color: '#70d6ff' }}>
+              🤖 AI PATTERN GENERATOR
+            </h3>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+              <input
+                type="text"
+                value={aiRequest.prompt}
+                onChange={(e) => mergeAiRequest({ prompt: e.target.value })}
+                placeholder="Describe your beat (e.g., dark trap with heavy bass)"
+                className="lg:col-span-2 p-3 rounded border-2 outline-none transition-colors text-white"
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  borderColor: '#4a4a4a',
+                  fontFamily: "'Space Mono', monospace"
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#70d6ff'}
+                onBlur={(e) => e.target.style.borderColor = '#4a4a4a'}
+              />
+              <select
+                value={aiRequest.genre}
+                onChange={(e) => mergeAiRequest({ genre: e.target.value })}
+                className="p-3 rounded border-2 text-white"
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  borderColor: '#4a4a4a',
+                  fontFamily: "'Space Mono', monospace"
+                }}
+              >
+                <option value="">Genre</option>
+                <option value="Hip-Hop">Hip-Hop</option>
+                <option value="House">House</option>
+                <option value="Techno">Techno</option>
+                <option value="Trap">Trap</option>
+                <option value="Jazz">Jazz</option>
+                <option value="Reggae">Reggae</option>
+                <option value="Industrial">Industrial</option>
+              </select>
+              <button
+                onClick={generatePattern}
+                disabled={!aiRequest.prompt.trim() || isGenerating}
+                className="font-bold rounded py-3 px-6 transition-colors"
+                style={{
+                  backgroundColor: isGenerating ? '#6b7280' : '#70d6ff',
+                  color: '#1a1a1a'
+                }}
+              >
+                {isGenerating ? '🎵 Creating...' : '✨ Generate'}
+              </button>
+            </div>
+            
+            {streamingText && (
+              <div 
+                className="p-4 rounded-lg border-2 mb-4"
+                style={{
+                  backgroundColor: 'rgba(255, 215, 112, 0.1)',
+                  borderColor: '#ffd670'
+                }}
+              >
+                <div className="text-sm text-white" style={{ fontFamily: "'Space Mono', monospace" }}>
+                  AI Composition: {streamingText}
+                </div>
+              </div>
+            )}
+            
+            <button
+              onClick={createDemoPattern}
+              disabled={isGenerating}
+              className="font-bold rounded py-2 px-4 transition-colors"
+              style={{
+                backgroundColor: '#e9ff70',
+                color: '#1a1a1a'
+              }}
+            >
+              🎲 Demo Pattern
+            </button>
+          </div>
+
+          {/* Controls Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            
+            {/* Transport Display */}
+            <div 
+              className="p-4 rounded-lg text-center"
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                border: '2px solid #70d6ff',
+                backdropFilter: 'blur(5px)'
+              }}
+            >
+              <div className="text-5xl font-bold mb-2" style={{ 
+                color: '#e9ff70',
+                fontFamily: "'Space Mono', monospace"
+              }}>
+                {currentPattern.tempo}
+              </div>
+              <div className="text-lg text-gray-400 mb-4">BPM</div>
+              <input
+                type="range"
+                min="60"
+                max="200"
+                value={currentPattern.tempo}
+                onChange={(e) => handleTempoChange(e.target.value)}
+                className="w-full"
+                style={{
+                  WebkitAppearance: 'none',
+                  appearance: 'none',
+                  background: 'linear-gradient(to right, #4a4a4a, #70d6ff)',
+                  height: '6px',
+                  borderRadius: '3px',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              />
+            </div>
+
+            {/* Pattern Controls */}
+            <div 
+              className="flex flex-col gap-2 p-4 rounded-lg"
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                border: '2px solid #ff9770',
+                backdropFilter: 'blur(5px)'
+              }}
+            >
+              <input
+                type="text"
+                value={currentPattern.name}
+                onChange={(e) => mergePattern({ name: e.target.value })}
+                className="p-3 rounded border-2 outline-none text-white"
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  borderColor: '#4a4a4a',
+                  fontFamily: "'Space Mono', monospace"
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#70d6ff'}
+                onBlur={(e) => e.target.style.borderColor = '#4a4a4a'}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={togglePlay}
+                  className="flex-1 font-bold rounded py-3 px-4 transition-colors"
+                  style={{
+                    backgroundColor: isPlaying ? '#ff9770' : '#ff70a6',
+                    color: 'white'
+                  }}
+                >
+                  {isPlaying ? '■ STOP' : '▶ PLAY'}
+                </button>
+                <button
+                  onClick={() => savePattern()}
+                  className="flex-1 font-bold rounded py-3 px-4 transition-colors"
+                  style={{
+                    backgroundColor: '#70d6ff',
+                    color: '#1a1a1a'
+                  }}
+                >
+                  SAVE
+                </button>
+                <button
+                  onClick={createNewPattern}
+                  className="flex-1 font-bold rounded py-3 px-4 transition-colors"
+                  style={{
+                    backgroundColor: '#e9ff70',
+                    color: '#1a1a1a'
+                  }}
+                >
+                  NEW
+                </button>
+              </div>
+            </div>
+
+            {/* Saved Patterns */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                border: '2px solid #70d6ff',
+                backdropFilter: 'blur(5px)'
+              }}
+            >
+              <h3 className="font-bold mb-2" style={{ color: '#ffd670' }}>
+                Saved Patterns
+              </h3>
+              <div className="max-h-24 overflow-y-auto flex flex-col gap-1 pr-2">
+                {patterns.length > 0 ? (
+                  patterns.map(pattern => (
+                    <button
+                      key={pattern._id}
+                      onClick={() => loadPattern(pattern)}
+                      className="text-left p-2 text-sm rounded transition-colors"
+                      style={{
+                        backgroundColor: pattern.name === currentPattern.name ? '#ff9770' : 'rgba(58, 58, 58, 0.8)',
+                        color: pattern.name === currentPattern.name ? '#1a1a1a' : 'white'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (pattern.name !== currentPattern.name) {
+                          e.target.style.backgroundColor = '#ff70a6'
+                          e.target.style.color = 'white'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (pattern.name !== currentPattern.name) {
+                          e.target.style.backgroundColor = 'rgba(58, 58, 58, 0.8)'
+                          e.target.style.color = 'white'
+                        }
+                      }}
+                    >
+                      {pattern.name} ({pattern.tempo} BPM)
+                      {pattern._files && Object.keys(pattern._files).length > 0 && (
+                        <span className="ml-2 text-xs" style={{ color: '#e9ff70' }}>
+                          🔉{Object.keys(pattern._files).length}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-gray-400 italic text-sm">Loading default patterns...</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Step Sequencer */}
+          <div
+            className="rounded-lg p-6 mb-6"
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              border: '2px solid #ff70a6'
+            }}
+          >
+            <h3 className="font-bold mb-6 text-center" style={{ color: '#ff70a6' }}>
+              STEP SEQUENCER
+            </h3>
+            
+            {/* Step Numbers Header */}
+            <div className="flex items-center gap-3 mb-6">
+              {/* Track Label */}
+              <div className="w-24 text-center font-bold text-xs py-2" style={{ color: '#ffd670' }}>
+                TRACK
+              </div>
+              
+              {/* Solo/Mute Label */}
+              <div className="w-16 text-center font-bold text-xs py-2" style={{ color: '#70d6ff' }}>
+                <div>Solo</div>
+                <div style={{ borderTop: '1px solid #70d6ff', margin: '2px 4px' }}></div>
+                <div>Mute</div>
+              </div>
+              
+              {/* Step Numbers */}
+              <div className="flex-1 grid grid-cols-16 gap-2">
+                {Array.from({ length: 16 }, (_, i) => {
+                  const groupIndex = Math.floor(i / 4)
+                  const colors = getStepGroupColors(groupIndex)
+                  const isCurrentStep = currentStep === i && isPlaying
+                  
+                  return (
+                    <div 
+                      key={i}
+                      className="text-center font-bold text-xs py-2 rounded"
+                      style={{
+                        backgroundColor: isCurrentStep ? colors.border : colors.bg,
+                        border: `1px solid ${colors.border}`,
+                        color: isCurrentStep ? '#1a1a1a' : colors.text
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Instrument Rows */}
+            {trackOrder.map((track, trackIndex) => (
+              <div 
+                key={track}
+                className="relative transition-transform duration-200 mb-3"
+                style={{
+                  transform: dragOverTrack === track ? 'scale(1.02)' : 'scale(1)',
+                  border: dragOverTrack === track ? '2px dashed #ffd670' : 'none',
+                  borderRadius: '0.375rem',
+                  padding: dragOverTrack === track ? '2px' : '0'
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  setDragOverTrack(track)
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setDragOverTrack(null)
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  handleFileUpload(Array.from(e.dataTransfer.files), track)
+                  setDragOverTrack(null)
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Track Name */}
+                  <button
+                    onClick={() => playSample(track, 0, false)} // Always preview on click
+                    className="w-24 font-bold text-xs rounded border-2 flex items-center justify-center py-3 px-2 transition-colors relative"
+                    style={{
+                      backgroundColor: trackConfig[track].color,
+                      borderColor: trackConfig[track].color,
+                      color: '#1a1a1a',
+                      opacity: mutedTracks[track] ? 0.5 : 1
+                    }}
+                  >
+                    {trackConfig[track].name}
+                    {currentPattern._files && currentPattern._files[track] && (
+                      <span 
+                        className="absolute top-0 right-0 text-xs"
+                        title="Custom sample loaded"
+                        style={{ color: '#1a1a1a' }}
+                      >
+                        🔉
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Solo/Mute Controls */}
+                  <div className="w-16 flex flex-col gap-1">
+                    <button
+                      onClick={() => toggleSolo(track)}
+                      className="text-xs font-bold rounded px-1 py-0.5 transition-colors"
+                      style={{
+                        backgroundColor: soloTracks[track] ? '#e9ff70' : 'rgba(255,255,255,0.1)',
+                        color: soloTracks[track] ? '#1a1a1a' : '#e9ff70',
+                        border: `1px solid ${soloTracks[track] ? '#e9ff70' : 'rgba(233,255,112,0.3)'}`
+                      }}
+                      title="Solo track"
+                    >
+                      S
+                    </button>
+                    <button
+                      onClick={() => toggleMute(track)}
+                      className="text-xs font-bold rounded px-1 py-0.5 transition-colors"
+                      style={{
+                        backgroundColor: mutedTracks[track] ? '#ff9770' : 'rgba(255,255,255,0.1)',
+                        color: mutedTracks[track] ? '#1a1a1a' : '#ff9770',
+                        border: `1px solid ${mutedTracks[track] ? '#ff9770' : 'rgba(255,151,112,0.3)'}`
+                      }}
+                      title="Mute track"
+                    >
+                      M
+                    </button>
+                  </div>
+
+                  {/* Step Buttons */}
+                  <div className="flex-1 grid grid-cols-16 gap-2">
+                    {Array.from({ length: 16 }, (_, i) => {
+                      const isActive = currentPattern.tracks[track] && currentPattern.tracks[track][i]
+                      const isCurrentStep = currentStep === i && isPlaying
+                      const groupIndex = Math.floor(i / 4)
+                      const colors = getStepGroupColors(groupIndex)
+                      const trackMuted = mutedTracks[track] || (Object.values(soloTracks).some(s => s) && !soloTracks[track])
+                      
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => toggleStep(i, track)}
+                          className="aspect-square font-bold text-xs rounded border-2 transition-all"
+                          style={{
+                            backgroundColor: isCurrentStep && isActive
+                              ? 'white'
+                              : isActive 
+                                ? trackConfig[track].color 
+                                : colors.bg,
+                            borderColor: isCurrentStep
+                              ? 'white'
+                              : isActive 
+                                ? trackConfig[track].color 
+                                : colors.border,
+                            color: isCurrentStep && isActive
+                              ? '#1a1a1a'
+                              : isActive 
+                                ? '#1a1a1a' 
+                                : colors.text,
+                            transform: isCurrentStep ? 'scale(1.1)' : 'scale(1)',
+                            boxShadow: isCurrentStep ? '0 0 10px rgba(255,255,255,0.5)' : 'none',
+                            opacity: trackMuted && isActive ? 0.4 : 1
+                          }}
+                        >
+                          {isActive ? '●' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Parameter Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+            {['levels', 'tune', 'decay'].map(param => (
+              <div 
+                key={param}
+                className="p-4 rounded-lg"
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  border: '2px solid #ff9770',
+                  backdropFilter: 'blur(5px)'
+                }}
+              >
+                <h4 className="font-bold mb-4" style={{ color: '#70d6ff' }}>
+                  {param.toUpperCase()}
+                </h4>
+                {trackOrder.map(track => (
+                  <div key={track} className="flex items-center gap-2 mb-2">
+                    <label className="text-xs font-bold w-14 text-right text-gray-400">
+                      {trackConfig[track].name.split(" ")[0]}
+                    </label>
+                    <input
+                      type="range"
+                      min={param === 'tune' ? -12 : 0}
+                      max={param === 'tune' ? 12 : 100}
+                      value={currentPattern[param] && currentPattern[param][track] !== undefined 
+                        ? currentPattern[param][track] 
+                        : (param === 'tune' ? 0 : (track === 'shaker' ? 90 : (track === 'snare' && param === 'decay' ? 90 : 50)))}
+                      onChange={(e) => updateParameter(param, track, parseInt(e.target.value))}
+                      className="flex-1"
+                      style={{
+                        WebkitAppearance: 'none',
+                        appearance: 'none',
+                        background: 'linear-gradient(to right, #4a4a4a, #70d6ff)',
+                        height: '6px',
+                        borderRadius: '3px',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <span className="text-xs w-8 text-center">
+                      {currentPattern[param] && currentPattern[param][track] !== undefined 
+                        ? currentPattern[param][track] 
+                        : (param === 'tune' ? 0 : (track === 'shaker' ? 90 : (track === 'snare' && param === 'decay' ? 90 : 50)))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* How To Section */}
+          <section 
+            className="mt-8 p-6 rounded-lg"
+            style={{
+              border: '2px solid #ff70a6',
+              backgroundColor: 'rgba(0,0,0,0.2)',
+              backdropFilter: 'blur(5px)'
+            }}
+          >
+            <h3 className="text-2xl font-bold mb-4 italic" style={{ color: '#ff70a6' }}>
+              How to Program This Sequencer
+            </h3>
+            <ul className="space-y-3 pl-5 list-disc">
+              <li>
+                <strong><i>Channel Layout:</i></strong> <i>Each horizontal row represents a drum sound. Click the track name 
+                button to preview sounds and **drag audio files** onto track names to load custom samples.</i>
+              </li>
+              <li>
+                <strong><i>Solo & Mute:</i></strong> <i>Use **S** (Solo) and **M** (Mute) buttons for each track. 
+                Solo isolates tracks, mute silences them. Visual feedback shows active states with color changes.</i>
+              </li>
+              <li>
+                <strong><i>Pattern Programming:</i></strong> <i>Click any step button to activate/deactivate that drum hit. 
+                Active steps show a filled circle (●) and play during sequence playback.</i>
+              </li>
+              <li>
+                <strong><i>Real-Time Editing:</i></strong> <i>**Edit patterns while playing** - changes take effect immediately. 
+                The white highlighted step shows current playback position. **Muted/solo'd tracks update live!**</i>
+              </li>
+              <li>
+                <strong><i>Auto-Loading Samples:</i></strong> <i>**Custom samples auto-load** when you switch between patterns! 
+                The 🔉 icon shows which channels have custom sounds. Samples are stored efficiently and persist across sessions.</i>
+              </li>
+              <li>
+                <strong><i>Hot-Swap Samples:</i></strong> <i>**Drag & drop new samples during playback** for instant audio switching. 
+                Changes take effect immediately without stopping the sequencer!</i>
+              </li>
+              <li>
+                <strong><i>AI Integration:</i></strong> <i>Use the **AI Generator** to create professional patterns based on 
+                genre descriptions. Your custom samples are preserved when generating new patterns!</i>
+              </li>
+            </ul>
+          </section>
+        </main>
+      </div>
+    </div>
+  )
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>
