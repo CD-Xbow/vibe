@@ -1,0 +1,664 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mass Transfer</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect, useRef } from "react"
+import { callAI } from "call-ai"
+import { ImgGen } from "use-vibes"
+import { useFireproof } from "use-fireproof"
+
+export default function App() {
+  const { database, useLiveQuery } = useFireproof("batch-style-transfer")
+  const [selectedImages, setSelectedImages] = useState([])
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState('Classic')
+  const [selectedStyle, setSelectedStyle] = useState('')
+  const [selectedSize, setSelectedSize] = useState('1024x1024')
+  const [selectedQuality, setSelectedQuality] = useState('auto')
+  const [processedCount, setProcessedCount] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
+  const [currentBatchId, setCurrentBatchId] = useState(null)
+  const fileInputRef = useRef(null)
+  
+  const { docs: imageDocuments } = useLiveQuery('type', {
+    key: 'image',
+    descending: true,
+  })
+
+  const { docs: currentBatchImages } = useLiveQuery('batchId', {
+    key: currentBatchId,
+    descending: false,
+  })
+
+  const styleCategories = {
+    'Classic': [
+      'Photorealistic', 'Portrait', 'Landscape', 'Vintage', 'Minimalist'
+    ],
+    'Artistic': [
+      'Watercolor', 'Oil Painting', 'Digital Art', 'Black & White', 'Cinematic'
+    ],
+    'Drawing': [
+      'Pencil Sketch', 'Charcoal', 'Crayon', 'Ink Drawing', 'Cross Hatch'
+    ],
+    'Illustration': [
+      'Cartoon', 'Anime', 'Comic Book', 'Vector Art', 'Pop Art'
+    ],
+    'Print': [
+      'Poster', 'Lithograph', 'Screen Print', 'Vintage Poster', 'Art Deco'
+    ],
+    'Modern': [
+      'Neon', 'Cyberpunk', 'Glitch Art', 'Vaporwave', 'Low Poly'
+    ]
+  }
+
+  const sizeOptions = [
+    { value: '256x256', label: '256Ã—256 (Square - Small)' },
+    { value: '512x512', label: '512Ã—512 (Square - Medium)' },
+    { value: '1024x1024', label: '1024Ã—1024 (Square - Large)' },
+    { value: '1024x1536', label: '1024Ã—1536 (Portrait)' },
+    { value: '1536x1024', label: '1536Ã—1024 (Landscape)' },
+    { value: 'auto', label: 'Auto (Recommended)' }
+  ]
+
+  const qualityOptions = [
+    { value: 'auto', label: 'Auto (Recommended)' },
+    { value: 'high', label: 'High Quality' },
+    { value: 'medium', label: 'Medium Quality' },
+    { value: 'low', label: 'Low Quality (Faster)' }
+  ]
+
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode')
+    if (saved) setIsDarkMode(JSON.parse(saved))
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem('darkMode', JSON.stringify(newMode))
+  }
+
+  const handleImagesUpload = (event) => {
+    const files = Array.from(event.target.files)
+    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+    setSelectedImages(imageFiles)
+    setProcessedCount(0)
+    setTotalCount(imageFiles.length)
+  }
+
+  const playCompletionSound = () => {
+    // Create audio context and generate completion sound
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+    
+    // Create a pleasant completion chime
+    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime) // C5
+    oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.2) // E5
+    oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.4) // G5
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8)
+    
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.8)
+  }
+
+  const getStylePrompt = (style) => {
+    const stylePrompts = {
+      'Photorealistic': 'Transform this image into a highly detailed photorealistic style with professional lighting and clarity',
+      'Portrait': 'Convert this to a professional portrait style with focused lighting and composition',
+      'Landscape': 'Transform this into a beautiful landscape photography style with dramatic lighting',
+      'Vintage': 'Apply a vintage film photography effect with aged colors and grain',
+      'Minimalist': 'Create a clean minimalist version with simplified forms and reduced color palette',
+      'Watercolor': 'Transform this into a beautiful watercolor painting with flowing colors and soft edges',
+      'Oil Painting': 'Convert this to a rich oil painting with thick brushstrokes and vibrant colors',
+      'Digital Art': 'Create a modern digital art version with clean lines and contemporary styling',
+      'Black & White': 'Convert to artistic black and white with dramatic contrast and tonal range',
+      'Cinematic': 'Apply cinematic color grading and dramatic lighting like a movie scene',
+      'Pencil Sketch': 'Transform this into a detailed pencil sketch with realistic shading and line work',
+      'Charcoal': 'Create a dramatic charcoal drawing with bold strokes and deep shadows',
+      'Crayon': 'Transform into a colorful crayon drawing with textured, waxy appearance',
+      'Ink Drawing': 'Convert to a precise ink drawing with clean lines and cross-hatching',
+      'Cross Hatch': 'Create an artistic cross-hatch drawing with intricate line patterns',
+      'Cartoon': 'Transform into a fun cartoon style with bold outlines and bright colors',
+      'Anime': 'Convert to anime/manga style with large eyes, clean lines, and vibrant colors',
+      'Comic Book': 'Create a comic book illustration with bold colors and dramatic shading',
+      'Vector Art': 'Transform into clean vector art with geometric shapes and flat colors',
+      'Pop Art': 'Apply pop art style with bright colors and high contrast like Andy Warhol',
+      'Poster': 'Create a striking poster design with bold typography and graphic elements',
+      'Lithograph': 'Transform into a vintage lithograph print with classical artistic qualities',
+      'Screen Print': 'Apply screen print effect with limited colors and bold graphic style',
+      'Vintage Poster': 'Create a retro vintage poster with classic advertising aesthetics',
+      'Art Deco': 'Transform into Art Deco style with geometric patterns and elegant lines',
+      'Neon': 'Apply glowing neon effects with bright electric colors and light trails',
+      'Cyberpunk': 'Create a cyberpunk aesthetic with neon colors and futuristic elements',
+      'Glitch Art': 'Apply digital glitch effects with distorted pixels and color shifts',
+      'Vaporwave': 'Transform into vaporwave aesthetic with pastel colors and retro elements',
+      'Low Poly': 'Convert to low-poly 3D style with geometric triangular facets'
+    }
+    
+    return stylePrompts[style] || `Transform this image into a ${style.toLowerCase()} style with artistic effects`
+  }
+
+  const processBatch = async () => {
+    if (!selectedImages.length || !selectedStyle) return
+    
+    setIsProcessing(true)
+    setProcessedCount(0)
+    const batchId = `batch-${Date.now()}`
+    setCurrentBatchId(batchId)
+    
+    try {
+      for (let i = 0; i < selectedImages.length; i++) {
+        const image = selectedImages[i]
+        
+        // Create the document with the uploaded image
+        const doc = {
+          type: 'image',
+          batchId: batchId,
+          prompt: getStylePrompt(selectedStyle),
+          style: selectedStyle,
+          category: selectedCategory,
+          originalName: image.name,
+          size: selectedSize,
+          quality: selectedQuality,
+          batchIndex: i + 1,
+          batchTotal: selectedImages.length,
+          createdAt: new Date().toISOString(),
+          _files: {
+            original: image
+          }
+        }
+        
+        await database.put(doc)
+        setProcessedCount(i + 1)
+        
+        // Small delay between processing to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      
+      // Play completion sound
+      playCompletionSound()
+      
+      // Show completion notification
+      alert(`ðŸŽ‰ Batch processing complete! ${selectedImages.length} images have been processed with ${selectedStyle} style.`)
+      
+    } catch (error) {
+      console.error('Error processing batch:', error)
+      alert('Error during batch processing. Some images may not have been processed.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const downloadBatch = async () => {
+    if (!currentBatchImages.length) return
+    
+    try {
+      for (const doc of currentBatchImages) {
+        const imgElement = document.querySelector(`[data-doc-id="${doc._id}"] img`)
+        if (imgElement && imgElement.src) {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          const img = new Image()
+          
+          img.crossOrigin = 'anonymous'
+          await new Promise((resolve) => {
+            img.onload = () => {
+              canvas.width = img.width
+              canvas.height = img.height
+              ctx.drawImage(img, 0, 0)
+              
+              const link = document.createElement('a')
+              link.download = `${doc.style}-${doc.originalName.replace(/\.[^/.]+$/, '')}-styled.png`
+              link.href = canvas.toDataURL('image/png')
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+              resolve()
+            }
+            img.src = imgElement.src
+          })
+          
+          // Small delay between downloads
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+      }
+      alert('All images downloaded successfully!')
+    } catch (error) {
+      console.error('Error downloading batch:', error)
+      alert('Error downloading some images.')
+    }
+  }
+
+  const deleteBatch = async () => {
+    if (!currentBatchImages.length) return
+    
+    if (confirm(`Are you sure you want to delete all ${currentBatchImages.length} images from this batch?`)) {
+      for (const doc of currentBatchImages) {
+        await database.del(doc._id)
+      }
+      setCurrentBatchId(null)
+    }
+  }
+
+  const clearSelectedImages = () => {
+    setSelectedImages([])
+    setProcessedCount(0)
+    setTotalCount(0)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const generateDemoData = async () => {
+    const demoPrompt = "Generate 3 sample image processing jobs with creative style names, categories, and file information for a batch image processing studio"
+    
+    const demoData = await callAI(demoPrompt, {
+      schema: {
+        properties: {
+          images: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                style: { type: "string" },
+                category: { type: "string" },
+                originalName: { type: "string" },
+                size: { type: "string" },
+                quality: { type: "string" }
+              }
+            }
+          }
+        }
+      }
+    })
+    
+    const data = JSON.parse(demoData)
+    const demoBatchId = `demo-batch-${Date.now()}`
+    
+    for (let i = 0; i < data.images.length; i++) {
+      const imageData = data.images[i]
+      await database.put({
+        type: 'image',
+        batchId: demoBatchId,
+        prompt: getStylePrompt(imageData.style),
+        style: imageData.style,
+        category: imageData.category,
+        originalName: imageData.originalName,
+        size: imageData.size,
+        quality: imageData.quality,
+        batchIndex: i + 1,
+        batchTotal: data.images.length,
+        createdAt: new Date().toISOString(),
+        isDemo: true
+      })
+    }
+    
+    setCurrentBatchId(demoBatchId)
+  }
+
+  const themeClasses = isDarkMode 
+    ? 'bg-[#242424] text-[#ffffff]' 
+    : 'bg-[#ffffff] text-[#242424]'
+
+  const cardTheme = isDarkMode 
+    ? 'bg-[#70d6ff] border-[#242424]' 
+    : 'bg-[#e9ff70] border-[#242424]'
+
+  const categoryColors = {
+    'Classic': 'bg-[#70d6ff]',
+    'Artistic': 'bg-[#ff70a6]',
+    'Drawing': 'bg-[#ff9770]',
+    'Illustration': 'bg-[#ffd670]',
+    'Print': 'bg-[#e9ff70]',
+    'Modern': 'bg-[#ff70a6]'
+  }
+
+  const progressPercentage = totalCount > 0 ? (processedCount / totalCount) * 100 : 0
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${themeClasses}`}>
+      {/* Background Pattern */}
+      <div className="fixed inset-0 opacity-10 pointer-events-none">
+        <div className="w-full h-full" style={{
+          backgroundImage: `radial-gradient(circle at 25% 25%, #ff70a6 2px, transparent 2px),
+                           radial-gradient(circle at 75% 75%, #70d6ff 2px, transparent 2px),
+                           radial-gradient(circle at 50% 50%, #ffd670 1px, transparent 1px)`,
+          backgroundSize: '60px 60px, 80px 80px, 40px 40px',
+          backgroundPosition: '0 0, 30px 30px, 15px 15px'
+        }} />
+      </div>
+
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold">Mass Style Transfer Studio</h1>
+            <p className="text-lg opacity-70 mt-2">Transform multiple images simultaneously with AI. For your pleasure by CD Xbow</p>
+          </div>
+          <div className="flex gap-4">
+            <button
+              onClick={generateDemoData}
+              className="bg-[#e9ff70] text-[#242424] px-4 py-2 rounded-lg border-4 border-[#242424] hover:bg-[#ffd670] transition-colors font-bold"
+            >
+              Demo Data
+            </button>
+            <button
+              onClick={toggleTheme}
+              className={`px-4 py-2 rounded-lg border-4 border-[#242424] transition-colors ${
+                isDarkMode ? 'bg-[#ffd670] text-[#242424]' : 'bg-[#ff70a6] text-[#ffffff]'
+              }`}
+            >
+              {isDarkMode ? 'Light' : 'Dark'}
+            </button>
+          </div>
+        </div>
+
+        {/* Upload Section */}
+        <div className={`p-6 rounded-lg border-4 border-[#242424] mb-8 ${cardTheme}`}>
+          <h2 className="text-2xl font-bold mb-4 text-[#242424]">Upload Multiple Images</h2>
+          <p className="text-[#242424] opacity-70 mb-4 italic">
+            *Select multiple images from your device to process them in batch. Choose your desired style, size, and quality settings, then hit process to transform all images simultaneously. A completion sound will alert you when finished.*
+          </p>
+          
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImagesUpload}
+            className="hidden"
+          />
+          
+          <div className="flex flex-wrap gap-4 items-center mb-4">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-[#ff9770] text-[#ffffff] px-6 py-3 rounded-lg border-4 border-[#242424] hover:bg-[#ff70a6] transition-colors font-bold"
+            >
+              Select Images
+            </button>
+            {selectedImages.length > 0 && (
+              <button
+                onClick={clearSelectedImages}
+                className="bg-[#ff70a6] text-[#ffffff] px-4 py-3 rounded-lg border-4 border-[#242424] hover:bg-[#242424] transition-colors font-bold"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+          
+          {selectedImages.length > 0 && (
+            <div className="bg-[#ffffff] border-4 border-[#242424] rounded-lg p-4">
+              <p className="text-[#242424] font-bold mb-2">
+                Selected: {selectedImages.length} images
+              </p>
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-32 overflow-y-auto">
+                {selectedImages.map((file, index) => (
+                  <div key={index} className="text-xs text-[#242424] bg-[#e9ff70] border-2 border-[#242424] rounded p-1 truncate">
+                    {file.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Configuration Section */}
+        {selectedImages.length > 0 && (
+          <div className={`p-6 rounded-lg border-4 border-[#242424] mb-8 ${cardTheme}`}>
+            <h2 className="text-2xl font-bold mb-4 text-[#242424]">Configure Processing</h2>
+            
+            {/* Style Selection */}
+            <div className="mb-6">
+              <h3 className="text-lg font-bold text-[#242424] mb-3">Choose Style Category</h3>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {Object.keys(styleCategories).map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`px-4 py-2 rounded-lg border-3 border-[#242424] transition-colors font-bold text-[#242424] ${
+                      selectedCategory === category 
+                        ? `${categoryColors[category]} scale-105` 
+                        : 'bg-[#ffffff] hover:bg-[#f0f0f0]'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+
+              <h3 className="text-lg font-bold text-[#242424] mb-3">Select Style</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+                {styleCategories[selectedCategory].map((style) => (
+                  <button
+                    key={style}
+                    onClick={() => setSelectedStyle(style)}
+                    className={`px-3 py-2 rounded-lg border-3 border-[#242424] transition-colors font-medium text-sm ${
+                      selectedStyle === style
+                        ? `${categoryColors[selectedCategory]} text-[#242424] scale-105`
+                        : 'bg-[#ffffff] text-[#242424] hover:bg-[#f0f0f0]'
+                    }`}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Size and Quality Selection */}
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-[#242424] mb-3">Output Size</h3>
+                <select
+                  value={selectedSize}
+                  onChange={(e) => setSelectedSize(e.target.value)}
+                  className="w-full p-3 border-4 border-[#242424] rounded-lg bg-[#ffffff] text-[#242424] font-medium"
+                >
+                  {sizeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-[#242424] mb-3">Quality</h3>
+                <select
+                  value={selectedQuality}
+                  onChange={(e) => setSelectedQuality(e.target.value)}
+                  className="w-full p-3 border-4 border-[#242424] rounded-lg bg-[#ffffff] text-[#242424] font-medium"
+                >
+                  {qualityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Process Button */}
+            <button
+              onClick={processBatch}
+              disabled={isProcessing || !selectedStyle}
+              className={`w-full py-4 px-6 rounded-lg border-4 border-[#242424] font-bold text-lg transition-colors ${
+                isProcessing || !selectedStyle
+                  ? 'bg-[#cccccc] text-[#666666] cursor-not-allowed'
+                  : 'bg-[#ff9770] text-[#ffffff] hover:bg-[#ff70a6]'
+              }`}
+            >
+              {isProcessing 
+                ? `Processing... (${processedCount}/${totalCount})` 
+                : `Process ${selectedImages.length} Images with ${selectedStyle || 'Selected'} Style`
+              }
+            </button>
+
+            {/* Progress Bar */}
+            {isProcessing && (
+              <div className="mt-4">
+                <div className="bg-[#ffffff] border-4 border-[#242424] rounded-lg overflow-hidden">
+                  <div 
+                    className="bg-[#70d6ff] h-4 transition-all duration-300"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+                <p className="text-[#242424] font-medium mt-2">
+                  Progress: {processedCount} of {totalCount} images completed ({Math.round(progressPercentage)}%)
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Current Batch Results */}
+        {currentBatchImages.length > 0 && (
+          <div className={`p-6 rounded-lg border-4 border-[#242424] mb-8 ${cardTheme}`}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-[#242424]">
+                Current Batch Results ({currentBatchImages.length} images)
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={downloadBatch}
+                  className="bg-[#e9ff70] text-[#242424] px-4 py-2 rounded-lg border-4 border-[#242424] hover:bg-[#ffd670] transition-colors font-bold"
+                >
+                  Download All
+                </button>
+                <button
+                  onClick={deleteBatch}
+                  className="bg-[#ff70a6] text-[#ffffff] px-4 py-2 rounded-lg border-4 border-[#242424] hover:bg-[#242424] transition-colors font-bold"
+                >
+                  Delete Batch
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {currentBatchImages.map((doc) => (
+                <div key={doc._id} className="bg-[#ffffff] rounded-lg border-4 border-[#242424] overflow-hidden">
+                  <div data-doc-id={doc._id} className="relative">
+                    <ImgGen _id={doc._id} database={database} />
+                  </div>
+                  
+                  <div className="p-3">
+                    <h4 className="font-bold text-[#242424] text-sm mb-1">
+                      {doc.style} #{doc.batchIndex}
+                    </h4>
+                    <p className="text-xs text-[#242424] mb-1 opacity-60">
+                      {doc.originalName}
+                    </p>
+                    <p className="text-xs text-[#242424] opacity-50">
+                      {doc.size} â€¢ {doc.quality}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Images Gallery */}
+        {imageDocuments.length > 0 && !currentBatchId && (
+          <div className={`p-6 rounded-lg border-4 border-[#242424] ${cardTheme}`}>
+            <h2 className="text-2xl font-bold mb-6 text-[#242424]">All Processed Images</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {imageDocuments.map((doc) => (
+                <div key={doc._id} className="bg-[#ffffff] rounded-lg border-4 border-[#242424] overflow-hidden">
+                  <div data-doc-id={doc._id} className="relative">
+                    <ImgGen _id={doc._id} database={database} />
+                  </div>
+                  
+                  <div className="p-3">
+                    <h4 className="font-bold text-[#242424] text-sm mb-1">
+                      {doc.style || 'Generated'}
+                    </h4>
+                    <p className="text-xs text-[#242424] mb-1 opacity-60">
+                      {doc.originalName || 'Unknown'}
+                    </p>
+                    <p className="text-xs text-[#242424] opacity-50">
+                      {new Date(doc.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {imageDocuments.length === 0 && selectedImages.length === 0 && (
+          <div className={`p-8 rounded-lg border-4 border-[#242424] text-center ${cardTheme}`}>
+            <h2 className="text-2xl font-bold mb-4 text-[#242424]">Welcome to Mass Style Transfer Studio</h2>
+            <p className="text-[#242424] opacity-70 mb-2">
+              **Upload multiple images** to transform them all with AI-powered style transfer!
+            </p>
+            <p className="text-sm text-[#242424] opacity-60">
+              *Choose from 30+ artistic styles, customize size and quality, then process everything at once*
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>
