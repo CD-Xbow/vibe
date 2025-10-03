@@ -1,0 +1,1222 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Made on Vibes DIY</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect, useRef } from "react"
+import { useFireproof } from "use-fireproof"
+
+export default function App() {
+  const { database, useLiveQuery } = useFireproof("puter-chat-native-api")
+  const [currentMessage, setCurrentMessage] = useState("")
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamingContent, setStreamingContent] = useState("")
+  const [selectedModel, setSelectedModel] = useState("gpt-4.1-nano")
+  const [isSignedIn, setIsSignedIn] = useState(false)
+  const [userInfo, setUserInfo] = useState(null)
+  const [isSigningIn, setIsSigningIn] = useState(false)
+  const [puterReady, setPuterReady] = useState(false)
+  const [puterError, setPuterError] = useState("")
+  const [showSettings, setShowSettings] = useState(false)
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [showFeaturedModels, setShowFeaturedModels] = useState(true)
+  const [testMode, setTestMode] = useState(false)
+  const messagesEndRef = useRef(null)
+
+  // Puter API supported models (from documentation)
+  const puterModels = [
+    "gpt-4o-mini",
+    "gpt-4o",
+    "o1",
+    "o1-mini",
+    "o1-pro",
+    "o3",
+    "o3-mini",
+    "o4-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4.5-preview",
+    "claude-sonnet-4",
+    "claude-opus-4",
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+    "deepseek-chat",
+    "deepseek-reasoner",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+    "mistral-large-latest",
+    "pixtral-large-latest",
+    "codestral-latest",
+    "google/gemma-2-27b-it",
+    "grok-beta"
+  ]
+
+  // Default featured models (subset of Puter models)
+  const featuredModels = [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4.1-nano",
+    "o1-mini",
+    "claude-sonnet-4",
+    "claude-3-5-sonnet",
+    "deepseek-chat",
+    "gemini-2.0-flash",
+    "mistral-large-latest",
+    "grok-beta"
+  ]
+
+  // IPLD-safe data cleaning function
+  const makeIPLDSafe = (obj) => {
+    if (obj === null || obj === undefined) {
+      return null
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj
+        .filter(item => item !== null && item !== undefined)
+        .map(item => makeIPLDSafe(item))
+    }
+    
+    if (typeof obj === 'object') {
+      const cleaned = {}
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'object') {
+            const cleanedValue = makeIPLDSafe(value)
+            if (cleanedValue !== null && cleanedValue !== undefined) {
+              cleaned[key] = cleanedValue
+            }
+          } else {
+            cleaned[key] = value
+          }
+        }
+      }
+      return Object.keys(cleaned).length > 0 ? cleaned : null
+    }
+    
+    return obj
+  }
+
+  // Safe database operation wrapper
+  const safePut = async (doc) => {
+    try {
+      const safeDoc = {
+        _id: doc._id || `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: doc.type || "unknown",
+        timestamp: doc.timestamp || Date.now(),
+        ...makeIPLDSafe(doc)
+      }
+      
+      const finalDoc = JSON.parse(JSON.stringify(safeDoc, (key, value) => {
+        return value === undefined ? null : value
+      }))
+      
+      return await database.put(finalDoc)
+    } catch (error) {
+      console.error('Safe put error:', error)
+      throw error
+    }
+  }
+
+  // Parse model name for better display
+  const parseModelName = (modelId) => {
+    if (!modelId || typeof modelId !== 'string') return "Unknown Model"
+    
+    let displayName = modelId
+      .replace(/\//g, ' ')
+      .replace(/-/g, ' ')
+      .replace(/\./g, ' ')
+    
+    displayName = displayName.split(' ').map(word => {
+      if (word.toLowerCase() === 'ai' || word.toLowerCase() === 'meta') {
+        return word.toUpperCase()
+      }
+      if (word.length <= 2) return word.toUpperCase()
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    }).join(' ')
+    
+    return displayName
+  }
+
+  // Get provider from model ID
+  const getModelProvider = (modelId) => {
+    if (!modelId || typeof modelId !== 'string') return 'Unknown'
+    
+    if (modelId.includes('/')) {
+      return modelId.split('/')[0]
+    }
+    if (modelId.startsWith('gpt') || modelId.startsWith('o1') || modelId.startsWith('o3') || modelId.startsWith('o4')) return 'OpenAI'
+    if (modelId.startsWith('claude')) return 'Anthropic'
+    if (modelId.startsWith('gemini')) return 'Google'
+    if (modelId.startsWith('mistral') || modelId.startsWith('codestral') || modelId.startsWith('pixtral')) return 'Mistral'
+    if (modelId.startsWith('grok')) return 'xAI'
+    if (modelId.startsWith('deepseek')) return 'DeepSeek'
+    if (modelId.includes('llama') || modelId.includes('Llama')) return 'Meta'
+    return 'Puter'
+  }
+
+  // Transform Puter models to display format
+  const availableModels = puterModels
+    .filter(modelId => modelId && typeof modelId === 'string')
+    .map(modelId => ({
+      id: String(modelId),
+      name: String(parseModelName(modelId)),
+      provider: String(getModelProvider(modelId)),
+      description: String(`${parseModelName(modelId)} by ${getModelProvider(modelId)}`)
+    }))
+    .sort((a, b) => {
+      const aFeatured = featuredModels.includes(a.id)
+      const bFeatured = featuredModels.includes(b.id)
+      
+      if (aFeatured && !bFeatured) return -1
+      if (!aFeatured && bFeatured) return 1
+      if (aFeatured && bFeatured) {
+        return featuredModels.indexOf(a.id) - featuredModels.indexOf(b.id)
+      }
+      
+      if (a.provider !== b.provider) {
+        return a.provider.localeCompare(b.provider)
+      }
+      return a.name.localeCompare(b.name)
+    })
+
+  // Get model settings from database
+  const { docs: modelSettings } = useLiveQuery("type", { key: "model-setting" }) || { docs: [] }
+
+  // Get enabled model IDs with fallback to featured models
+  const enabledModelIds = modelSettings && modelSettings.length > 0 
+    ? modelSettings
+        .filter(setting => setting && setting.enabled === true && setting.modelId)
+        .map(setting => setting.modelId)
+        .filter(id => id && typeof id === 'string')
+    : featuredModels
+
+  // Filter available models to only show enabled ones with fallback
+  const enabledModels = availableModels.filter(model => 
+    model && model.id && enabledModelIds.includes(model.id)
+  )
+
+  // Ensure at least one model is available, fallback to featured if needed
+  const finalEnabledModels = enabledModels.length > 0 ? enabledModels : 
+    availableModels.filter(model => featuredModels.includes(model.id)).slice(0, 5)
+
+  // Get all messages with safe defaults
+  const { docs: messages } = useLiveQuery("timestamp") || { docs: [] }
+  const safeMessages = (messages || []).filter(msg => msg && msg.content && msg.role)
+
+  // Search functionality with error handling
+  const filteredModels = availableModels.filter(model => {
+    if (!searchTerm || !model) return true
+    try {
+      const term = searchTerm.toLowerCase()
+      return (
+        model.name.toLowerCase().includes(term) ||
+        model.provider.toLowerCase().includes(term) ||
+        model.id.toLowerCase().includes(term)
+      )
+    } catch (error) {
+      console.error('Filter error:', error)
+      return true
+    }
+  })
+
+  // Ensure selected model is valid and enabled
+  useEffect(() => {
+    if (!selectedModel || !finalEnabledModels.find(m => m.id === selectedModel)) {
+      if (finalEnabledModels.length > 0) {
+        setSelectedModel(finalEnabledModels[0].id)
+      }
+    }
+  }, [selectedModel, finalEnabledModels])
+
+  // Initialize Puter SDK with better error handling
+  useEffect(() => {
+    const initPuter = async () => {
+      setPuterError("")
+      
+      try {
+        if (typeof window !== 'undefined' && window.puter) {
+          setPuterReady(true)
+          await checkAuthStatus()
+          return
+        }
+
+        const script = document.createElement('script')
+        script.src = 'https://js.puter.com/v2/'
+        script.async = true
+        
+        script.onload = async () => {
+          setTimeout(async () => {
+            if (window.puter) {
+              setPuterReady(true)
+              await checkAuthStatus()
+            } else {
+              setPuterError("Puter SDK failed to initialize")
+            }
+          }, 500)
+        }
+        
+        script.onerror = () => {
+          setPuterError("Failed to load Puter SDK. Please check your internet connection.")
+        }
+        
+        document.head.appendChild(script)
+        
+        return () => {
+          try {
+            if (script.parentNode) {
+              script.parentNode.removeChild(script)
+            }
+          } catch (error) {
+            // Silent cleanup
+          }
+        }
+        
+      } catch (error) {
+        setPuterError("Error initializing Puter: " + (error.message || "Unknown error"))
+      }
+    }
+
+    initPuter()
+  }, [])
+
+  // Initialize model settings with better error handling
+  useEffect(() => {
+    const initModelSettings = async () => {
+      if (modelSettings.length === 0 && availableModels.length > 0) {
+        try {
+          for (const model of availableModels) {
+            if (model && model.id) {
+              await safePut({
+                _id: `model-setting-${model.id.replace(/[^a-zA-Z0-9]/g, '-')}`,
+                type: "model-setting",
+                modelId: String(model.id),
+                enabled: Boolean(featuredModels.includes(model.id)),
+                timestamp: Date.now()
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Error initializing model settings:', error)
+        }
+      }
+    }
+
+    initModelSettings()
+  }, [availableModels.length, modelSettings.length])
+
+  const checkAuthStatus = async () => {
+    if (!window.puter || !window.puter.auth) {
+      return
+    }
+    
+    try {
+      const signedIn = await window.puter.auth.isSignedIn()
+      setIsSignedIn(signedIn)
+      
+      if (signedIn) {
+        try {
+          const user = await window.puter.auth.getUser()
+          setUserInfo({
+            username: (user && user.username) ? String(user.username) : "user",
+            email: (user && user.email) ? String(user.email) : "",
+            email_confirmed: Boolean(user && user.email_confirmed),
+            uuid: (user && (user.uuid || user.id)) ? String(user.uuid || user.id) : `user-${Date.now()}`
+          })
+        } catch (userError) {
+          console.error('User info error:', userError)
+          setUserInfo({
+            username: "user",
+            email: "",
+            email_confirmed: false,
+            uuid: `user-${Date.now()}`
+          })
+        }
+      } else {
+        setUserInfo(null)
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error)
+      setIsSignedIn(false)
+      setUserInfo(null)
+    }
+  }
+
+  const toggleModelEnabled = async (modelId) => {
+    if (!modelId || typeof modelId !== 'string') return
+    
+    const existingSetting = modelSettings.find(setting => setting && setting.modelId === modelId)
+    
+    try {
+      if (existingSetting) {
+        await safePut({
+          ...existingSetting,
+          enabled: Boolean(!existingSetting.enabled),
+          timestamp: Date.now()
+        })
+      } else {
+        await safePut({
+          _id: `model-setting-${modelId.replace(/[^a-zA-Z0-9]/g, '-')}`,
+          type: "model-setting",
+          modelId: String(modelId),
+          enabled: true,
+          timestamp: Date.now()
+        })
+      }
+      
+      // Ensure at least one model remains enabled
+      const currentEnabled = modelSettings.filter(s => s && s.enabled && s.modelId !== modelId)
+      if (currentEnabled.length === 0 && existingSetting && existingSetting.enabled) {
+        // Don't allow disabling the last enabled model
+        return
+      }
+      
+      // If disabling current model, switch to another enabled one
+      if (modelId === selectedModel && existingSetting && existingSetting.enabled) {
+        const remainingEnabled = finalEnabledModels.filter(model => model.id !== modelId)
+        if (remainingEnabled.length > 0) {
+          setSelectedModel(remainingEnabled[0].id)
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling model:', error)
+    }
+  }
+
+  const saveModelSettings = async () => {
+    setIsSavingSettings(true)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 300))
+      setShowSettings(false)
+    } catch (error) {
+      console.error('Error saving settings:', error)
+    } finally {
+      setIsSavingSettings(false)
+    }
+  }
+
+  const handleSignIn = async () => {
+    if (!window.puter || !window.puter.auth) {
+      alert("Puter SDK not ready. Please wait a moment and try again.")
+      return
+    }
+
+    setIsSigningIn(true)
+    setPuterError("")
+    
+    try {
+      await window.puter.auth.signIn()
+      
+      setTimeout(async () => {
+        await checkAuthStatus()
+      }, 1000)
+      
+    } catch (error) {
+      console.error("Sign in failed:", error)
+      setPuterError("Sign in failed: " + String(error.message || "Unknown error"))
+    } finally {
+      setIsSigningIn(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    if (!window.puter || !window.puter.auth) return
+    
+    try {
+      await window.puter.auth.signOut()
+      setIsSignedIn(false)
+      setUserInfo(null)
+    } catch (error) {
+      console.error("Sign out failed:", error)
+      setIsSignedIn(false)
+      setUserInfo(null)
+    }
+  }
+
+  const scrollToBottom = () => {
+    try {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    } catch (error) {
+      // Silent fail
+    }
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [safeMessages, streamingContent])
+
+  // Native Puter AI API integration
+  const sendMessage = async () => {
+    if (!currentMessage.trim() || isStreaming || !isSignedIn) return
+
+    const userMessage = String(currentMessage.trim())
+    setCurrentMessage("")
+    setIsStreaming(true)
+    setStreamingContent("")
+
+    try {
+      // Save user message
+      await safePut({
+        role: "user",
+        content: String(userMessage),
+        timestamp: Date.now(),
+        userId: String((userInfo && userInfo.uuid) || "anonymous")
+      })
+
+      let fullResponse = ""
+      
+      if (window.puter && window.puter.ai && window.puter.ai.chat) {
+        try {
+          // Build conversation history for Puter AI
+          const conversationHistory = safeMessages
+            .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+            .slice(-10) // Keep last 10 messages for context
+            .map(msg => ({
+              role: String(msg.role || "user"),
+              content: String(msg.content || "")
+            }))
+          
+          conversationHistory.push({
+            role: "user", 
+            content: String(userMessage)
+          })
+
+          // Use native Puter AI API with streaming
+          const generator = await window.puter.ai.chat(conversationHistory, {
+            model: String(selectedModel),
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 2000
+          })
+
+          // Process streaming response
+          for await (const chunk of generator) {
+            if (chunk && typeof chunk === 'string') {
+              fullResponse += chunk
+              setStreamingContent(String(fullResponse))
+            } else if (chunk && chunk.text && typeof chunk.text === 'string') {
+              fullResponse += chunk.text
+              setStreamingContent(String(fullResponse))
+            } else if (chunk && chunk.content && typeof chunk.content === 'string') {
+              fullResponse += chunk.content
+              setStreamingContent(String(fullResponse))
+            }
+          }
+          
+        } catch (aiError) {
+          console.error("Puter AI error:", aiError)
+          
+          // Enhanced error handling with fallback
+          let errorMessage = "I encountered an error processing your request. "
+          
+          if (aiError.message) {
+            if (aiError.message.includes('authentication')) {
+              errorMessage += "Please try signing out and signing back in."
+            } else if (aiError.message.includes('model')) {
+              errorMessage += `The model "${selectedModel}" may be temporarily unavailable. Try switching to a different model.`
+            } else if (aiError.message.includes('quota') || aiError.message.includes('limit')) {
+              errorMessage += "You may have reached your usage limit. Please try again later."
+            } else {
+              errorMessage += "Please try again or switch to a different model."
+            }
+          }
+          
+          fullResponse = errorMessage
+          setStreamingContent(fullResponse)
+        }
+      } else {
+        fullResponse = "Puter AI service is not available. Please refresh the page and try again."
+        setStreamingContent(fullResponse)
+      }
+
+      // Save AI response
+      await safePut({
+        role: "assistant",
+        content: String(fullResponse),
+        timestamp: Date.now(),
+        model: String(selectedModel),
+        userId: String((userInfo && userInfo.uuid) || "anonymous"),
+        testMode: Boolean(testMode)
+      })
+
+    } catch (error) {
+      console.error("Chat error:", error)
+      
+      const errorMessage = "Sorry, I encountered an error. Please try again or check your connection."
+      
+      try {
+        await safePut({
+          role: "assistant",
+          content: String(errorMessage),
+          timestamp: Date.now(),
+          model: String(selectedModel),
+          isError: true,
+          userId: String((userInfo && userInfo.uuid) || "anonymous")
+        })
+      } catch (dbError) {
+        console.error("Database error:", dbError)
+      }
+    } finally {
+      setIsStreaming(false)
+      setStreamingContent("")
+    }
+  }
+
+  const clearChat = async () => {
+    if (!confirm("Clear all chat history?")) return
+    
+    try {
+      for (const msg of safeMessages) {
+        if (msg && msg._id) {
+          await database.del(msg._id)
+        }
+      }
+    } catch (error) {
+      console.error('Error clearing chat:', error)
+    }
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const getModelDisplayName = (modelId) => {
+    if (!modelId) return "Unknown Model"
+    const model = availableModels.find(m => m && m.id === modelId)
+    return model ? model.name : parseModelName(modelId)
+  }
+
+  const isModelEnabled = (modelId) => {
+    if (!modelId) return false
+    const setting = modelSettings.find(setting => setting && setting.modelId === modelId)
+    return setting ? Boolean(setting.enabled) : featuredModels.includes(modelId)
+  }
+
+  const groupedModels = filteredModels.reduce((groups, model) => {
+    if (model && model.provider) {
+      if (!groups[model.provider]) {
+        groups[model.provider] = []
+      }
+      groups[model.provider].push(model)
+    }
+    return groups
+  }, {})
+
+  const enableFeaturedModels = async () => {
+    try {
+      for (const modelId of featuredModels) {
+        if (modelId && typeof modelId === 'string') {
+          const existingSetting = modelSettings.find(setting => setting && setting.modelId === modelId)
+          
+          if (existingSetting && !existingSetting.enabled) {
+            await safePut({
+              ...existingSetting,
+              enabled: true,
+              timestamp: Date.now()
+            })
+          } else if (!existingSetting) {
+            await safePut({
+              _id: `model-setting-${modelId.replace(/[^a-zA-Z0-9]/g, '-')}`,
+              type: "model-setting",
+              modelId: String(modelId),
+              enabled: true,
+              timestamp: Date.now()
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error enabling featured models:', error)
+    }
+  }
+
+  const toggleAllModels = async (enable) => {
+    try {
+      for (const model of filteredModels) {
+        if (model && model.id) {
+          const existingSetting = modelSettings.find(setting => setting && setting.modelId === model.id)
+          
+          if (existingSetting) {
+            await safePut({
+              ...existingSetting,
+              enabled: Boolean(enable),
+              timestamp: Date.now()
+            })
+          } else {
+            await safePut({
+              _id: `model-setting-${model.id.replace(/[^a-zA-Z0-9]/g, '-')}`,
+              type: "model-setting",
+              modelId: String(model.id),
+              enabled: Boolean(enable),
+              timestamp: Date.now()
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling all models:', error)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-[#0f0f23] text-white">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 bg-[#1e1e3f] border-b border-[#3d3d56]">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-gradient-to-r from-[#ff6b6b] to-[#4ecdc4] rounded-lg flex items-center justify-center">
+            <span className="text-lg font-bold">🚀</span>
+          </div>
+          <div>
+            <h1 className="font-bold text-xl text-[#e6e6fa]">Puter AI Chat</h1>
+            <p className="text-xs text-[#9b9bbb]">
+              {puterModels.length} Native Puter Models • {enabledModelIds.length} Enabled
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          {/* Test Mode Toggle */}
+          <label className="flex items-center space-x-2 text-sm">
+            <input
+              type="checkbox"
+              checked={testMode}
+              onChange={(e) => setTestMode(e.target.checked)}
+              className="w-4 h-4 text-[#4ecdc4] bg-[#2d2d4f] border-[#4d4d6f] rounded focus:ring-[#4ecdc4]"
+            />
+            <span className="text-[#9b9bbb]">Test Mode</span>
+          </label>
+
+          {/* Model Dropdown */}
+          <div className="relative">
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={isStreaming || !isSignedIn}
+              className="bg-[#2d2d4f] border border-[#4d4d6f] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#4ecdc4] disabled:opacity-50 max-w-[200px] h-10 overflow-y-auto"
+            >
+              {finalEnabledModels.map((model) => (
+                <option key={model.id} value={model.id} title={model.description}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <button
+            onClick={() => setShowSettings(true)}
+            disabled={!puterReady}
+            className="px-4 py-2 text-sm bg-[#6c5ce7] hover:bg-[#5f3dc4] disabled:bg-[#4d4d6f] text-white font-semibold rounded-lg transition-colors"
+          >
+            ⚙️ Models
+          </button>
+          
+          <button
+            onClick={clearChat}
+            disabled={!isSignedIn || safeMessages.length === 0}
+            className="px-4 py-2 text-sm bg-[#ff6b6b] hover:bg-[#ff5252] disabled:bg-[#4d4d6f] text-white font-semibold rounded-lg transition-colors"
+          >
+            Clear
+          </button>
+
+          {/* Authentication */}
+          {!puterReady ? (
+            <div className="px-4 py-2 text-sm bg-[#ffa726] text-[#0f0f23] rounded-lg">
+              {puterError ? "⚠️ Error" : "Loading..."}
+            </div>
+          ) : isSignedIn ? (
+            <div className="flex items-center space-x-3">
+              <div className="text-right">
+                <div className="text-sm font-semibold text-[#4ecdc4]">
+                  {(userInfo && userInfo.username) || 'User'}
+                </div>
+                <div className="text-xs text-[#9b9bbb]">
+                  {(userInfo && userInfo.email_confirmed) ? '✓ Verified' : '✓ Signed In'}
+                </div>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="px-3 py-2 text-sm bg-[#6c5ce7] hover:bg-[#5f3dc4] text-white rounded-lg transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSignIn}
+              disabled={isSigningIn || !puterReady}
+              className="px-4 py-2 text-sm bg-gradient-to-r from-[#ff6b6b] to-[#4ecdc4] hover:from-[#ff5252] hover:to-[#45b7b8] disabled:opacity-50 text-white font-semibold rounded-lg transition-all"
+            >
+              {isSigningIn ? "Signing In..." : "Sign In"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {puterError && (
+        <div className="p-4 bg-[#ff6b6b]/20 border-b border-[#ff6b6b]/40 text-[#ffb3ba] text-sm">
+          <strong>⚠️ Puter Error:</strong> {puterError}
+          <button
+            onClick={() => window.location.reload()}
+            className="ml-4 px-3 py-1 bg-[#ff6b6b] hover:bg-[#ff5252] text-white rounded text-xs"
+          >
+            Reload
+          </button>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1e1e3f] border border-[#3d3d56] rounded-xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-[#3d3d56] flex-shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-[#e6e6fa]">🚀 Native Puter AI Models</h2>
+                <p className="text-sm text-[#9b9bbb] mt-1">
+                  Configure official Puter AI models • {puterModels.length} total models • {enabledModelIds.length} enabled
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={saveModelSettings}
+                  disabled={isSavingSettings}
+                  className="px-4 py-2 text-sm bg-[#4ecdc4] hover:bg-[#45b7b8] disabled:opacity-50 text-[#0f0f23] font-semibold rounded-lg transition-colors"
+                >
+                  {isSavingSettings ? "Saving..." : "💾 Save & Close"}
+                </button>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="text-[#9b9bbb] hover:text-white text-xl p-2"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            
+            {/* Controls */}
+            <div className="p-4 border-b border-[#3d3d56] flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                <input
+                  type="text"
+                  placeholder="🔍 Search models by name, provider, or ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="flex-1 min-w-[300px] bg-[#2d2d4f] border border-[#4d4d6f] rounded-lg px-3 py-2 text-sm text-white placeholder-[#9b9bbb] focus:outline-none focus:border-[#4ecdc4]"
+                />
+                <button
+                  onClick={enableFeaturedModels}
+                  className="px-3 py-2 text-sm bg-[#ff6b6b] hover:bg-[#ff5252] text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
+                >
+                  ✨ Enable Featured
+                </button>
+                <button
+                  onClick={() => toggleAllModels(true)}
+                  className="px-3 py-2 text-sm bg-[#4ecdc4] hover:bg-[#45b7b8] text-[#0f0f23] font-semibold rounded-lg transition-colors whitespace-nowrap"
+                >
+                  ✅ Enable All
+                </button>
+                <button
+                  onClick={() => toggleAllModels(false)}
+                  className="px-3 py-2 text-sm bg-[#6c5ce7] hover:bg-[#5f3dc4] text-white font-semibold rounded-lg transition-colors whitespace-nowrap"
+                >
+                  ❌ Disable All
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4">
+                {/* Featured Models Section */}
+                {!searchTerm && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        onClick={() => setShowFeaturedModels(!showFeaturedModels)}
+                        className="flex items-center space-x-2 text-lg font-semibold text-[#e6e6fa] hover:text-[#4ecdc4] transition-colors"
+                      >
+                        <span className={`transform transition-transform ${showFeaturedModels ? 'rotate-90' : ''}`}>
+                          ▶
+                        </span>
+                        <span>⭐ Featured Puter Models ({featuredModels.length})</span>
+                      </button>
+                    </div>
+                    
+                    {showFeaturedModels && (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 p-4 bg-[#2d2d4f]/30 rounded-lg border border-[#4d4d6f]/50">
+                        {featuredModels.filter(modelId => availableModels.find(m => m && m.id === modelId)).map(modelId => {
+                          const model = availableModels.find(m => m && m.id === modelId)
+                          if (!model) return null
+                          return (
+                            <div
+                              key={modelId}
+                              className={`p-3 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
+                                isModelEnabled(modelId)
+                                  ? 'bg-[#4ecdc4]/20 border-[#4ecdc4]/60 text-[#4ecdc4] shadow-lg shadow-[#4ecdc4]/20'
+                                  : 'bg-[#2d2d4f] border-[#4d4d6f] text-[#9b9bbb] hover:border-[#6d6d8f] hover:bg-[#3d3d56]'
+                              }`}
+                              onClick={() => toggleModelEnabled(modelId)}
+                            >
+                              <div className="font-semibold text-sm truncate" title={model.name}>
+                                {model.name}
+                              </div>
+                              <div className="text-xs mt-1 opacity-75 truncate" title={model.provider}>
+                                {model.provider}
+                              </div>
+                              <div className="text-xs mt-2 text-center">
+                                {isModelEnabled(modelId) ? '✅ Enabled' : '⚪ Disabled'}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* All Models Section */}
+                <div>
+                  <h3 className="text-lg font-semibold text-[#e6e6fa] mb-4 flex items-center">
+                    <span className="mr-2">📋</span>
+                    {searchTerm ? `Search Results (${filteredModels.length})` : `All Puter Models by Provider`}
+                  </h3>
+                  
+                  {Object.keys(groupedModels).length > 0 ? (
+                    <div className="bg-[#2d2d4f] border border-[#4d4d6f] rounded-lg overflow-hidden">
+                      {Object.entries(groupedModels).sort(([a], [b]) => a.localeCompare(b)).map(([provider, models]) => (
+                        <div key={provider} className="border-b border-[#4d4d6f] last:border-b-0">
+                          <div className="p-4 bg-[#3d3d56] font-semibold text-[#e6e6fa] sticky top-0 z-10 flex items-center justify-between">
+                            <span className="flex items-center">
+                              <span className="mr-2">🏢</span>
+                              {provider} ({models.length} models)
+                            </span>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => {
+                                  models.forEach(model => {
+                                    if (!isModelEnabled(model.id)) {
+                                      toggleModelEnabled(model.id)
+                                    }
+                                  })
+                                }}
+                                className="px-2 py-1 text-xs bg-[#4ecdc4] hover:bg-[#45b7b8] text-[#0f0f23] rounded font-semibold"
+                              >
+                                ✅ Enable All
+                              </button>
+                              <button
+                                onClick={() => {
+                                  models.forEach(model => {
+                                    if (isModelEnabled(model.id)) {
+                                      toggleModelEnabled(model.id)
+                                    }
+                                  })
+                                }}
+                                className="px-2 py-1 text-xs bg-[#6c5ce7] hover:bg-[#5f3dc4] text-white rounded font-semibold"
+                              >
+                                ❌ Disable All
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="divide-y divide-[#4d4d6f]">
+                            {models.map((model) => {
+                              if (!model || !model.id) return null
+                              return (
+                                <div key={model.id} className="p-3 hover:bg-[#3d3d56] transition-colors">
+                                  <div className="flex items-start space-x-3">
+                                    <input
+                                      type="checkbox"
+                                      id={`model-${model.id}`}
+                                      checked={isModelEnabled(model.id)}
+                                      onChange={() => toggleModelEnabled(model.id)}
+                                      className="mt-1 w-4 h-4 text-[#4ecdc4] bg-[#2d2d4f] border-[#4d4d6f] rounded focus:ring-[#4ecdc4] focus:ring-2"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <label htmlFor={`model-${model.id}`} className="cursor-pointer">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                          <div className="font-semibold text-[#e6e6fa]">
+                                            {model.name}
+                                          </div>
+                                          {featuredModels.includes(model.id) && (
+                                            <span className="px-2 py-1 text-xs bg-[#ff6b6b]/20 text-[#ff6b6b] rounded border border-[#ff6b6b]/40">
+                                              ⭐ Featured
+                                            </span>
+                                          )}
+                                          <span className="px-2 py-1 text-xs bg-[#4ecdc4]/20 text-[#4ecdc4] rounded border border-[#4ecdc4]/40">
+                                            🚀 Native Puter
+                                          </span>
+                                        </div>
+                                        <div className="text-xs text-[#9b9bbb] mb-1 font-mono break-all">
+                                          {model.id}
+                                        </div>
+                                        <div className="text-sm text-[#c9c9e0]">
+                                          {model.description}
+                                        </div>
+                                      </label>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-[#9b9bbb]">
+                      No models found matching your search criteria.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-[#3d3d56] bg-[#1e1e3f] flex-shrink-0">
+              <div className="flex items-center justify-between text-sm text-[#9b9bbb]">
+                <span>
+                  Native Puter Models: {puterModels.length} • 
+                  Enabled: {enabledModelIds.length} • 
+                  Test Mode: {testMode ? 'ON' : 'OFF'}
+                </span>
+                <span>
+                  🚀 Powered by Official Puter AI API
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {!isSignedIn && puterReady && !puterError && (
+          <div className="text-center bg-gradient-to-r from-[#ff6b6b]/10 to-[#4ecdc4]/10 border border-[#ff6b6b]/20 rounded-xl p-6">
+            <div className="flex items-center justify-center mb-4">
+              <span className="text-3xl mr-3">🔐</span>
+              <span className="text-xl font-bold text-[#e6e6fa]">Sign In Required</span>
+            </div>
+            <p className="text-[#c9c9e0] mb-4">
+              **Sign in with your Puter account** to access native AI chat features. 
+              Experience {puterModels.length} official Puter AI models including GPT-4o, Claude Sonnet 4, and DeepSeek.
+            </p>
+          </div>
+        )}
+
+        {safeMessages.length === 0 && !streamingContent && isSignedIn && (
+          <div className="text-center mt-8">
+            <div className="w-20 h-20 bg-gradient-to-r from-[#ff6b6b] to-[#4ecdc4] rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-3xl">🚀</span>
+            </div>
+            <h2 className="text-2xl font-bold mb-3 text-[#e6e6fa]">Welcome to Native Puter AI Chat</h2>
+            <p className="text-[#c9c9e0] mb-6 max-w-2xl mx-auto italic">
+              **Experience cutting-edge AI conversation** with {puterModels.length} official Puter AI models. 
+              Native API integration provides seamless streaming, enhanced error handling, and direct access to the latest AI models. 
+              All conversations are stored securely using Fireproof's encrypted database.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto text-sm text-[#9b9bbb]">
+              <div className="space-y-2">
+                <p><strong className="text-[#4ecdc4]">🚀 Native Features:</strong></p>
+                <p>• Official Puter AI API integration</p>
+                <p>• Real-time streaming responses</p>
+                <p>• Test mode for safe experimentation</p>
+                <p>• Enhanced error handling and recovery</p>
+              </div>
+              <div className="space-y-2">
+                <p><strong className="text-[#ff6b6b]">✨ AI Models:</strong></p>
+                <p>• OpenAI GPT-4o, GPT-4.1 series</p>
+                <p>• Anthropic Claude Sonnet & Opus</p>
+                <p>• Google Gemini & DeepSeek</p>
+                <p>• Meta Llama & Mistral models</p>
+              </div>
+            </div>
+            <div className="mt-6 p-4 bg-[#1e1e3f]/50 rounded-lg max-w-md mx-auto">
+              <p className="text-sm text-[#4ecdc4] mb-2">
+                Currently using: **{getModelDisplayName(selectedModel)}**
+              </p>
+              <p className="text-sm text-[#4ecdc4]">
+                Provider: **{getModelProvider(selectedModel)}**
+              </p>
+              <p className="text-xs text-[#9b9bbb] mt-2">
+                ✓ Signed in as {(userInfo && userInfo.username) || 'User'} • 
+                Test Mode: {testMode ? 'ON' : 'OFF'} • 
+                {enabledModelIds.length} models enabled
+              </p>
+            </div>
+          </div>
+        )}
+
+        {safeMessages
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+          .map((message) => (
+          <div key={message._id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-xs sm:max-w-md lg:max-w-lg rounded-xl px-4 py-3 ${
+              message.role === "user" 
+                ? "bg-gradient-to-r from-[#ff6b6b] to-[#ff9f43] text-white" 
+                : message.isError
+                  ? "bg-[#ff6b6b]/20 border border-[#ff6b6b]/40 text-[#ffb3ba]"
+                  : "bg-[#2d2d4f] border border-[#4d4d6f] text-[#e6e6fa]"
+            }`}>
+              <div className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</div>
+              <div className={`text-xs mt-2 flex items-center justify-between ${
+                message.role === "user" ? "text-white/70" : "text-[#9b9bbb]"
+              }`}>
+                <span>{new Date(message.timestamp || 0).toLocaleTimeString()}</span>
+                <div className="flex items-center space-x-2">
+                  {message.testMode && (
+                    <span className="text-xs bg-[#ffa726]/20 text-[#ffa726] px-2 py-1 rounded border border-[#ffa726]/40">
+                      TEST
+                    </span>
+                  )}
+                  {message.model && (
+                    <span className="opacity-80 font-medium" title={message.model}>
+                      {getModelDisplayName(message.model)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {isStreaming && streamingContent && (
+          <div className="flex justify-start">
+            <div className="max-w-xs sm:max-w-md lg:max-w-lg rounded-xl px-4 py-3 bg-[#2d2d4f] border border-[#4ecdc4]/40 text-[#e6e6fa]">
+              <div className="whitespace-pre-wrap break-words leading-relaxed">{streamingContent}</div>
+              <div className="text-xs text-[#4ecdc4] mt-2 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex space-x-1 mr-2">
+                    <div className="w-2 h-2 bg-[#4ecdc4] rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-[#4ecdc4] rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                    <div className="w-2 h-2 bg-[#4ecdc4] rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                  </div>
+                  Puter AI is responding...
+                </div>
+                <div className="flex items-center space-x-2">
+                  {testMode && (
+                    <span className="text-xs bg-[#ffa726]/20 text-[#ffa726] px-2 py-1 rounded border border-[#ffa726]/40">
+                      TEST
+                    </span>
+                  )}
+                  <span className="font-medium" title={selectedModel}>
+                    {getModelDisplayName(selectedModel)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-6 bg-[#1e1e3f] border-t border-[#3d3d56]">
+        <div className="flex space-x-4">
+          <textarea
+            value={currentMessage}
+            onChange={(e) => setCurrentMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder={isSignedIn ? `Message ${getModelDisplayName(selectedModel)}${testMode ? ' (Test Mode)' : ''}...` : puterReady ? "Sign in to start chatting..." : "Loading..."}
+            disabled={isStreaming || !isSignedIn || !puterReady}
+            className="flex-1 bg-[#2d2d4f] border border-[#4d4d6f] rounded-xl px-4 py-3 text-white placeholder-[#9b9bbb] resize-none focus:outline-none focus:border-[#4ecdc4] disabled:opacity-50 min-h-[52px] max-h-32"
+            rows={1}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!currentMessage.trim() || isStreaming || !isSignedIn || !puterReady}
+            className="px-6 py-3 bg-gradient-to-r from-[#ff6b6b] to-[#4ecdc4] hover:from-[#ff5252] hover:to-[#45b7b8] disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all flex items-center justify-center min-w-[60px]"
+          >
+            {isStreaming ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <span className="text-lg">🚀</span>
+            )}
+          </button>
+        </div>
+        <div className="text-xs text-[#9b9bbb] mt-3 text-center">
+          {isSignedIn 
+            ? `Press Enter to send • Shift+Enter for new line • Native Puter AI API${testMode ? ' • Test Mode Enabled' : ''}` 
+            : puterReady ? "Sign in with Puter to access AI features" 
+            : "Loading Puter SDK..."
+          }
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="text-xs text-[#6c6c8a] text-center p-3 border-t border-[#3d3d56]/50">
+        <span>
+          Built with **Native Puter AI API** • 
+          SDK: {puterReady ? "✓ Ready" : "⏳ Loading"} • 
+          Auth: {isSignedIn ? "✓ Signed In" : "❌ Not Signed In"} • 
+          Storage: ✓ IPLD Safe • 
+          Models: {puterModels.length} Official • 
+          Test Mode: {testMode ? 'ON' : 'OFF'}
+        </span>
+      </div>
+    </div>
+  )
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>
