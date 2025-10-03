@@ -9,9 +9,11 @@ These are small Vibe apps that some folks may find useful. I certainly do.
 
 ## Remixes
 These are remixes of others work
+- rainman.html - rain prediction tool for your current location. Added metric units, theme and map. https://rainman.puter.site/
+- loan-planner.html -loan, investment and retirement planner. Added currency, theme and help. https://myfinances.puter.site/
 - drummachine.html - a drum machine
 - ai303.html - a digital reprsentation of the famous Roland 303
-- psycho.html - Wild color filter tool. http://psychodali.puter.site
+- psycho.html - Wild color filter tool, I've toned down the interface. http://psychodali.puter.site
 
 ## Use
 
@@ -20,7 +22,7 @@ These are remixes of others work
 
 ## Warnings
 
-These apps are entirely dependent on Vibe being up and working, all the smarts occur on the vibe server, so if it is down you are stuffed. Mind you this is no different to any online dependency, I felt it needed to be spelt out clearly. It's already happened to me once. 
+These apps are entirely dependent on Vibe being up and working, all the ai smarts occur on the vibe server, so if it is down you are stuffed. Mind you this is no different to any online dependency, I felt it needed to be spelt out clearly. It's already happened to me once. 
 
 ## Enjoy
 
