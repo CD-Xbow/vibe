@@ -9,8 +9,8 @@ These are small Vibe apps that some folks may find useful. I certainly do.
 
 ## Remixes
 These are remixes of others work
-- drummachine.html
-- ai303.html
+- drummachine.html - a drum machine
+- ai303.html - a digital reprsentation of the famous Roland 303
 - psycho.html - Wild color filter tool. http://psychodali.puter.site
 
 ## Use
@@ -18,4 +18,10 @@ These are remixes of others work
 - Download the file and deploy.
 - They can be used locally or served
 
+## Warnings
+
+These apps are entirely dependent on Vibe being up and working, all the smarts occur on the vibe server, so if it is down you are stuffed. Mind you this is no different to any online dependency, I felt it needed to be spelt out clearly. It's already happened to me once. 
+
 ## Enjoy
+
+Peace and goodwill to all - except those old, greedy and stupid men causing conflict around the world, they can drop dead. 
