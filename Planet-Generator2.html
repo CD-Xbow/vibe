@@ -1,0 +1,785 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Made on Vibes DIY</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState } from "react"
+import { callAI } from "call-ai"
+import { useFireproof } from "use-fireproof"
+import { ImgGen } from "use-vibes"
+
+export default function App() {
+  const { database, useLiveQuery } = useFireproof("planet-catalog-v6")
+  const [generating, setGenerating] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [activeTab, setActiveTab] = useState("gallery")
+  const [selectedPlanet, setSelectedPlanet] = useState(null)
+  const [error, setError] = useState(null)
+
+  const { docs: planets } = useLiveQuery("type", {
+    key: "planet",
+    descending: true
+  })
+
+  const { docs: images } = useLiveQuery("type", {
+    key: "image"
+  })
+
+  async function generatePlanet() {
+    setGenerating(true)
+    setError(null)
+
+    try {
+      const response = await callAI(
+        "Generate a unique fictional planet with realistic scientific properties, complete solar system context, and interesting moons.",
+        {
+          schema: {
+            properties: {
+              name: { type: "string" },
+              planetType: { type: "string" },
+              size: { type: "string" },
+              mass: { type: "string" },
+              gravity: { type: "string" },
+              orbit: { type: "string" },
+              escapeVelocity: { type: "string" },
+              orbitalVelocity: { type: "string" },
+              rotationPeriod: { type: "string" },
+              inclination: { type: "string" },
+              atmosphere: { type: "string" },
+              surfaceConditions: { type: "string" },
+              temperature: { type: "string" },
+              resources: {
+                type: "array",
+                items: { type: "string" }
+              },
+              habitation: { type: "string" },
+              history: { type: "string" },
+              starName: { type: "string" },
+              starType: { type: "string" },
+              numberOfPlanets: { type: "number" },
+              planetPosition: { type: "number" },
+              moons: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    size: { type: "string" },
+                    orbit: { type: "string" },
+                    composition: { type: "string" },
+                    features: { type: "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )
+
+      const planetData = JSON.parse(response)
+
+      const spacePrompt = `A stunning view of ${planetData.name}, a ${planetData.planetType} planet, from deep space. Show the planet as a majestic sphere with visible atmospheric features. ${planetData.atmosphere}. ${planetData.moons && planetData.moons.length > 0 ? `Show ${planetData.moons.length} moon(s) orbiting nearby.` : ''} Photorealistic space photography style.`
+      
+      const orbitPrompt = `Orbital view of ${planetData.name} showing the curvature of the planet. ${planetData.surfaceConditions}. Detailed planetary surface visible below. Astronaut perspective from orbit.`
+      
+      const surfacePrompt = `Standing on the surface of ${planetData.name}. ${planetData.surfaceConditions}. ${planetData.atmosphere}. ${planetData.moons && planetData.moons.length > 0 ? `One or more moons visible in the sky.` : ''} Dramatic alien landscape photography.`
+      
+      const mapPrompt = `Mercator projection topographic map of ${planetData.name}. Clean cartographic design with latitude/longitude grid, color-coded elevation data, continental outlines. Professional GIS style.`
+
+      // Create image documents first
+      const spaceImg = await database.put({
+        type: "image",
+        category: "space",
+        planetName: planetData.name,
+        prompt: spacePrompt
+      })
+
+      const orbitImg = await database.put({
+        type: "image",
+        category: "orbit",
+        planetName: planetData.name,
+        prompt: orbitPrompt
+      })
+
+      const surfaceImg = await database.put({
+        type: "image",
+        category: "surface",
+        planetName: planetData.name,
+        prompt: surfacePrompt
+      })
+
+      const mapImg = await database.put({
+        type: "image",
+        category: "map",
+        planetName: planetData.name,
+        prompt: mapPrompt
+      })
+
+      // Create planet with image IDs
+      await database.put({
+        type: "planet",
+        name: planetData.name || "Unknown Planet",
+        planetType: planetData.planetType || "Unknown",
+        size: planetData.size || "Unknown",
+        mass: planetData.mass || "Unknown",
+        gravity: planetData.gravity || "Unknown",
+        orbit: planetData.orbit || "Unknown",
+        escapeVelocity: planetData.escapeVelocity || "Unknown",
+        orbitalVelocity: planetData.orbitalVelocity || "Unknown",
+        rotationPeriod: planetData.rotationPeriod || "Unknown",
+        inclination: planetData.inclination || "Unknown",
+        atmosphere: planetData.atmosphere || "Unknown",
+        surfaceConditions: planetData.surfaceConditions || "Unknown",
+        temperature: planetData.temperature || "Unknown",
+        resources: planetData.resources || [],
+        habitation: planetData.habitation || "Unknown",
+        history: planetData.history || "Unknown",
+        starName: planetData.starName || "Unknown",
+        starType: planetData.starType || "Unknown",
+        numberOfPlanets: planetData.numberOfPlanets || 0,
+        planetPosition: planetData.planetPosition || 0,
+        moons: planetData.moons || [],
+        imageIds: {
+          space: spaceImg.id,
+          orbit: orbitImg.id,
+          surface: surfaceImg.id,
+          map: mapImg.id
+        },
+        createdAt: Date.now()
+      })
+
+    } catch (err) {
+      console.error("Generation error:", err)
+      setError(err.message || "Failed to generate planet")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function deletePlanet(planetId) {
+    if (confirm("Are you sure you want to delete this planet?")) {
+      await database.del(planetId)
+      if (selectedPlanet?._id === planetId) {
+        setSelectedPlanet(null)
+        setActiveTab("gallery")
+      }
+    }
+  }
+
+  async function updatePlanet(updatedDoc) {
+    await database.put(updatedDoc)
+    setSelectedPlanet(updatedDoc)
+  }
+
+  async function exportPlanetHTML(planet) {
+    setExporting(true)
+    setError(null)
+    
+    try {
+      const JSZip = (await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm')).default
+      const zip = new JSZip()
+
+      console.log("Planet imageIds:", planet.imageIds)
+      console.log("All images in db:", images.length)
+
+      const imagePaths = {}
+
+      if (planet.imageIds) {
+        for (const [key, imageId] of Object.entries(planet.imageIds)) {
+          if (!imageId) {
+            console.log(`No imageId for ${key}`)
+            continue
+          }
+          
+          try {
+            const imageDoc = await database.get(imageId)
+            console.log(`Found ${key} image doc:`, imageDoc)
+            
+            if (imageDoc && imageDoc._files?.original) {
+              try {
+                const file = await imageDoc._files.original.file()
+                const arrayBuffer = await file.arrayBuffer()
+                const filename = `${key}.png`
+                zip.file(`images/${filename}`, arrayBuffer)
+                imagePaths[key] = `images/${filename}`
+                console.log(`Successfully added ${key} image to zip`)
+              } catch (e) {
+                console.error(`Error reading ${key} image file:`, e)
+                imagePaths[key] = `https://picsum.photos/800/600?random=${key}`
+              }
+            } else {
+              console.warn(`No file data for ${key} image`)
+              imagePaths[key] = `https://picsum.photos/800/600?random=${key}`
+            }
+          } catch (e) {
+            console.error(`Error getting ${key} image doc:`, e)
+            imagePaths[key] = `https://picsum.photos/800/600?random=${key}`
+          }
+        }
+      }
+
+      const moonsHTML = planet.moons && planet.moons.length > 0 
+        ? `<div class="card">
+             <h2 style="margin-bottom: 1rem;">Moons (${planet.moons.length})</h2>
+             <div class="moons-grid">
+               ${planet.moons.map(moon => `
+                 <div class="moon-card">
+                   <h3>${moon.name}</h3>
+                   <div class="field"><div class="field-label">Size</div><div class="field-value">${moon.size}</div></div>
+                   <div class="field"><div class="field-label">Orbit</div><div class="field-value">${moon.orbit}</div></div>
+                   <div class="field"><div class="field-label">Composition</div><div class="field-value">${moon.composition}</div></div>
+                   <div class="field"><div class="field-label">Features</div><div class="field-value">${moon.features}</div></div>
+                 </div>
+               `).join('')}
+             </div>
+           </div>`
+        : ''
+
+      const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${planet.name} - Planetary Catalog</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; line-height: 1.6; padding: 2rem; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 2rem; margin-bottom: 2rem; }
+    h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 2rem; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+    .field { margin-bottom: 1rem; }
+    .field-label { font-size: 0.875rem; color: #888; margin-bottom: 0.25rem; }
+    .field-value { background: #2a2a2a; padding: 0.5rem; border-radius: 4px; }
+    .resources { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .resource-tag { background: #2a2a2a; padding: 0.5rem 1rem; border-radius: 9999px; font-size: 0.875rem; }
+    .images-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+    .image-panel { border: 1px solid #333; border-radius: 8px; overflow: hidden; }
+    .image-header { background: #2a2a2a; padding: 0.5rem 1rem; border-bottom: 1px solid #333; font-weight: 500; }
+    .image-panel img { width: 100%; height: 300px; object-fit: cover; display: block; }
+    .moons-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+    .moon-card { background: #2a2a2a; border: 1px solid #444; border-radius: 8px; padding: 1rem; }
+    .moon-card h3 { margin-bottom: 0.5rem; color: #70d6ff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${planet.name}</h1>
+      <p style="color: #888; font-size: 1.125rem;">${planet.planetType}</p>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">Solar System Context</h2>
+      <div class="grid">
+        <div>
+          <div class="field"><div class="field-label">Star Name</div><div class="field-value">${planet.starName}</div></div>
+          <div class="field"><div class="field-label">Star Type</div><div class="field-value">${planet.starType}</div></div>
+        </div>
+        <div>
+          <div class="field"><div class="field-label">Total Planets</div><div class="field-value">${planet.numberOfPlanets}</div></div>
+          <div class="field"><div class="field-label">Orbital Position</div><div class="field-value">${planet.planetPosition}</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">Physical Characteristics</h2>
+      <div class="grid">
+        <div>
+          <div class="field"><div class="field-label">Size</div><div class="field-value">${planet.size}</div></div>
+          <div class="field"><div class="field-label">Mass</div><div class="field-value">${planet.mass}</div></div>
+          <div class="field"><div class="field-label">Gravity</div><div class="field-value">${planet.gravity}</div></div>
+          <div class="field"><div class="field-label">Orbit</div><div class="field-value">${planet.orbit}</div></div>
+          <div class="field"><div class="field-label">Escape Velocity</div><div class="field-value">${planet.escapeVelocity}</div></div>
+        </div>
+        <div>
+          <div class="field"><div class="field-label">Orbital Velocity</div><div class="field-value">${planet.orbitalVelocity}</div></div>
+          <div class="field"><div class="field-label">Rotation Period</div><div class="field-value">${planet.rotationPeriod}</div></div>
+          <div class="field"><div class="field-label">Inclination</div><div class="field-value">${planet.inclination}</div></div>
+          <div class="field"><div class="field-label">Temperature</div><div class="field-value">${planet.temperature}</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">Atmosphere & Surface</h2>
+      <div class="field"><div class="field-label">Atmosphere</div><div class="field-value">${planet.atmosphere}</div></div>
+      <div class="field"><div class="field-label">Surface Conditions</div><div class="field-value">${planet.surfaceConditions}</div></div>
+      <div class="field"><div class="field-label">Habitation Status</div><div class="field-value">${planet.habitation}</div></div>
+    </div>
+    ${moonsHTML}
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">Resources</h2>
+      <div class="resources">${planet.resources?.map(r => `<span class="resource-tag">${r}</span>`).join('') || '<span>None detected</span>'}</div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">History</h2>
+      <div class="field-value">${planet.history}</div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">Planetary Imagery</h2>
+      <div class="images-grid">
+        ${imagePaths.space ? `<div class="image-panel"><div class="image-header">View from Space</div><img src="${imagePaths.space}" alt="View from Space"></div>` : ''}
+        ${imagePaths.orbit ? `<div class="image-panel"><div class="image-header">Orbital View</div><img src="${imagePaths.orbit}" alt="Orbital View"></div>` : ''}
+        ${imagePaths.surface ? `<div class="image-panel"><div class="image-header">Surface View</div><img src="${imagePaths.surface}" alt="Surface View"></div>` : ''}
+        ${imagePaths.map ? `<div class="image-panel"><div class="image-header">Topographic Map</div><img src="${imagePaths.map}" alt="Topographic Map"></div>` : ''}
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
+
+      zip.file(`${planet.name.replace(/[^a-z0-9]/gi, '_')}.html`, htmlContent)
+      
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `${planet.name.replace(/[^a-z0-9]/gi, '_')}_catalog.zip`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      console.log("Export completed successfully")
+
+    } catch (err) {
+      console.error("Export error:", err)
+      setError("Failed to export: " + err.message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  function PlanetCard({ planet }) {
+    return (
+      <div className="bg-white border-4 border-[#242424] p-4 hover:bg-[#ffd670] transition-colors">
+        <div className="flex justify-between items-start mb-3">
+          <h3 
+            onClick={() => { setSelectedPlanet(planet); setActiveTab("details"); }}
+            className="text-lg font-bold text-[#242424] cursor-pointer"
+          >
+            {planet.name}
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); exportPlanetHTML(planet); }}
+              disabled={exporting}
+              className="px-2 py-1 bg-[#70d6ff] border-2 border-[#242424] text-[#242424] rounded hover:bg-[#ff70a6] disabled:opacity-50"
+              title="Export to HTML with images"
+            >
+              {exporting ? "⏳" : "📦"}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); deletePlanet(planet._id); }}
+              className="px-2 py-1 bg-[#ff70a6] border-2 border-[#242424] text-[#242424] rounded hover:bg-[#ff9770]"
+              title="Delete planet"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        <div className="text-sm text-[#242424] space-y-1 mb-3">
+          <p><strong>Type:</strong> {planet.planetType}</p>
+          <p><strong>System:</strong> {planet.starName}</p>
+          {planet.moons && planet.moons.length > 0 && (
+            <p><strong>Moons:</strong> {planet.moons.length}</p>
+          )}
+        </div>
+        {planet.imageIds?.space && (
+          <div className="mt-3 border-2 border-[#242424]">
+            <ImgGen 
+              _id={planet.imageIds.space}
+              database={database}
+              className="w-full h-32 object-cover"
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function PlanetDetails({ planet }) {
+    const [editMode, setEditMode] = useState(false)
+    const [localDoc, setLocalDoc] = useState(planet)
+
+    function updateField(field, value) {
+      setLocalDoc({ ...localDoc, [field]: value })
+    }
+
+    function addMoon() {
+      const newMoon = {
+        name: "New Moon",
+        size: "",
+        orbit: "",
+        composition: "",
+        features: ""
+      }
+      setLocalDoc({ 
+        ...localDoc, 
+        moons: [...(localDoc.moons || []), newMoon] 
+      })
+    }
+
+    function updateMoon(index, field, value) {
+      const updatedMoons = [...(localDoc.moons || [])]
+      updatedMoons[index] = { ...updatedMoons[index], [field]: value }
+      setLocalDoc({ ...localDoc, moons: updatedMoons })
+    }
+
+    function removeMoon(index) {
+      const updatedMoons = (localDoc.moons || []).filter((_, i) => i !== index)
+      setLocalDoc({ ...localDoc, moons: updatedMoons })
+    }
+
+    async function saveChanges() {
+      await updatePlanet(localDoc)
+      setEditMode(false)
+    }
+
+    return (
+      <div className="bg-white border-4 border-[#242424] p-6">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            {editMode ? (
+              <input
+                value={localDoc.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                className="text-3xl font-bold text-[#242424] bg-[#e9ff70] border-2 border-[#242424] px-3 py-1"
+              />
+            ) : (
+              <h2 className="text-3xl font-bold text-[#242424]">{localDoc.name}</h2>
+            )}
+            <p className="text-[#242424] mt-1">{localDoc.planetType}</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportPlanetHTML(localDoc)}
+              disabled={exporting}
+              className="px-4 py-2 bg-[#70d6ff] border-4 border-[#242424] text-[#242424] font-bold hover:bg-[#ffd670] disabled:opacity-50"
+            >
+              {exporting ? "⏳ Exporting..." : "📦 Export"}
+            </button>
+            {editMode ? (
+              <>
+                <button
+                  onClick={saveChanges}
+                  className="px-4 py-2 bg-[#e9ff70] border-4 border-[#242424] text-[#242424] font-bold hover:bg-[#ffd670]"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => { setEditMode(false); setLocalDoc(planet); }}
+                  className="px-4 py-2 bg-[#ff70a6] border-4 border-[#242424] text-[#242424] font-bold hover:bg-[#ff9770]"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setEditMode(true)}
+                className="px-4 py-2 bg-[#e9ff70] border-4 border-[#242424] text-[#242424] font-bold hover:bg-[#ffd670]"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mb-6 p-4 bg-[#e9ff70] border-4 border-[#242424]">
+          <h3 className="text-xl font-bold text-[#242424] mb-3">Solar System: {localDoc.starName}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-[#242424]">
+            <p><strong>Star Type:</strong> {localDoc.starType}</p>
+            <p><strong>Number of Planets:</strong> {localDoc.numberOfPlanets}</p>
+            <p><strong>Orbital Position:</strong> {localDoc.planetPosition}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="space-y-4">
+            <DetailField label="Size" value={localDoc.size} edit={editMode} onChange={(v) => updateField("size", v)} />
+            <DetailField label="Mass" value={localDoc.mass} edit={editMode} onChange={(v) => updateField("mass", v)} />
+            <DetailField label="Gravity" value={localDoc.gravity} edit={editMode} onChange={(v) => updateField("gravity", v)} />
+            <DetailField label="Orbit" value={localDoc.orbit} edit={editMode} onChange={(v) => updateField("orbit", v)} />
+          </div>
+          <div className="space-y-4">
+            <DetailField label="Temperature" value={localDoc.temperature} edit={editMode} onChange={(v) => updateField("temperature", v)} />
+            <DetailField label="Atmosphere" value={localDoc.atmosphere} edit={editMode} onChange={(v) => updateField("atmosphere", v)} multiline />
+            <DetailField label="Surface" value={localDoc.surfaceConditions} edit={editMode} onChange={(v) => updateField("surfaceConditions", v)} multiline />
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-xl font-bold text-[#242424]">🌙 Moons ({localDoc.moons?.length || 0})</h3>
+            {editMode && (
+              <button
+                onClick={addMoon}
+                className="px-3 py-1 bg-[#70d6ff] border-2 border-[#242424] text-[#242424] text-sm font-bold hover:bg-[#ff70a6]"
+              >
+                + Add Moon
+              </button>
+            )}
+          </div>
+          {localDoc.moons && localDoc.moons.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {localDoc.moons.map((moon, idx) => (
+                <div key={idx} className="bg-[#e9ff70] border-2 border-[#242424] p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    {editMode ? (
+                      <input
+                        value={moon.name}
+                        onChange={(e) => updateMoon(idx, "name", e.target.value)}
+                        className="font-bold text-[#242424] bg-[#ffd670] border-2 border-[#242424] px-2 py-1 flex-1"
+                        placeholder="Moon name"
+                      />
+                    ) : (
+                      <h4 className="font-bold text-[#242424]">{moon.name}</h4>
+                    )}
+                    {editMode && (
+                      <button
+                        onClick={() => removeMoon(idx)}
+                        className="ml-2 px-2 py-1 bg-[#ff70a6] border-2 border-[#242424] text-[#242424] text-sm hover:bg-[#ff9770]"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <MoonField label="Size" value={moon.size} edit={editMode} onChange={(v) => updateMoon(idx, "size", v)} />
+                    <MoonField label="Orbit" value={moon.orbit} edit={editMode} onChange={(v) => updateMoon(idx, "orbit", v)} />
+                    <MoonField label="Composition" value={moon.composition} edit={editMode} onChange={(v) => updateMoon(idx, "composition", v)} />
+                    <MoonField label="Features" value={moon.features} edit={editMode} onChange={(v) => updateMoon(idx, "features", v)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[#242424] p-4 bg-[#ffd670] border-2 border-[#242424]">
+              No moons detected in orbit.
+            </p>
+          )}
+        </div>
+
+        <div className="mb-6">
+          <h3 className="text-xl font-bold text-[#242424] mb-2">Resources</h3>
+          {editMode ? (
+            <input
+              value={localDoc.resources?.join(", ") || ""}
+              onChange={(e) => updateField("resources", e.target.value.split(",").map(s => s.trim()))}
+              className="w-full p-2 bg-[#e9ff70] border-2 border-[#242424] text-[#242424]"
+              placeholder="Comma-separated resources"
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {localDoc.resources?.map((resource, i) => (
+                <span key={i} className="px-3 py-1 bg-[#70d6ff] border-2 border-[#242424] text-[#242424] text-sm">
+                  {resource}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <DetailField label="History" value={localDoc.history} edit={editMode} onChange={(v) => updateField("history", v)} multiline />
+
+        <div className="mt-6">
+          <h3 className="text-xl font-bold text-[#242424] mb-4">Planetary Imagery</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {localDoc.imageIds?.space && (
+              <ImagePanel title="View from Space" imageId={localDoc.imageIds.space} />
+            )}
+            {localDoc.imageIds?.orbit && (
+              <ImagePanel title="Orbital View" imageId={localDoc.imageIds.orbit} />
+            )}
+            {localDoc.imageIds?.surface && (
+              <ImagePanel title="Surface View" imageId={localDoc.imageIds.surface} />
+            )}
+            {localDoc.imageIds?.map && (
+              <ImagePanel title="Topographic Map" imageId={localDoc.imageIds.map} />
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function DetailField({ label, value, edit, onChange, multiline }) {
+    return (
+      <div>
+        <label className="block text-sm font-bold text-[#242424] mb-1">{label}</label>
+        {edit ? (
+          multiline ? (
+            <textarea
+              value={value || ""}
+              onChange={(e) => onChange(e.target.value)}
+              rows={3}
+              className="w-full p-2 bg-[#e9ff70] border-2 border-[#242424] text-[#242424]"
+            />
+          ) : (
+            <input
+              value={value || ""}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full p-2 bg-[#e9ff70] border-2 border-[#242424] text-[#242424]"
+            />
+          )
+        ) : (
+          <p className="text-[#242424] p-2 bg-[#ffd670] border-2 border-[#242424]">{value}</p>
+        )}
+      </div>
+    )
+  }
+
+  function MoonField({ label, value, edit, onChange }) {
+    return (
+      <div>
+        <label className="block text-xs font-bold text-[#242424] mb-1">{label}</label>
+        {edit ? (
+          <input
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full p-1 bg-[#ffd670] border-2 border-[#242424] text-[#242424] text-sm"
+          />
+        ) : (
+          <p className="text-[#242424] p-1 bg-[#ffd670] border-2 border-[#242424] text-sm">{value || "N/A"}</p>
+        )}
+      </div>
+    )
+  }
+
+  function ImagePanel({ title, imageId }) {
+    return (
+      <div className="border-4 border-[#242424] overflow-hidden">
+        <div className="bg-[#ff70a6] p-2 border-b-4 border-[#242424]">
+          <h4 className="font-bold text-[#242424]">{title}</h4>
+        </div>
+        <ImgGen 
+          _id={imageId}
+          database={database}
+          className="w-full h-64 object-cover"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#70d6ff] p-4" style={{
+      backgroundImage: `radial-gradient(circle, #242424 1px, transparent 1px)`,
+      backgroundSize: '20px 20px'
+    }}>
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-[#ff9770] border-4 border-[#242424] p-6 mb-6">
+          <h1 className="text-4xl font-bold text-[#242424] mb-2">🪐 Planetary Catalog</h1>
+          <p className="text-[#242424] italic">Generate unique fictional planets with AI-powered imagery and orbital moons. Each planet comes with detailed specifications and four stunning views: from space, from orbit, surface perspective, and topographic map.</p>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-[#ff70a6] border-4 border-[#242424]">
+            <p className="font-bold text-[#242424]">⚠️ Error: {error}</p>
+          </div>
+        )}
+
+        <div className="mb-6">
+          <button
+            onClick={generatePlanet}
+            disabled={generating}
+            className="w-full md:w-auto px-6 py-3 bg-[#e9ff70] border-4 border-[#242424] text-[#242424] font-bold text-lg hover:bg-[#ffd670] disabled:opacity-50"
+          >
+            {generating ? "🌌 Generating Planet..." : "✨ Generate New Planet"}
+          </button>
+        </div>
+
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <button
+            onClick={() => setActiveTab("gallery")}
+            className={`px-4 py-2 border-4 border-[#242424] font-bold ${
+              activeTab === "gallery" ? "bg-[#ffd670]" : "bg-[#ffffff]"
+            } text-[#242424]`}
+          >
+            Gallery ({planets.length})
+          </button>
+          {selectedPlanet && (
+            <button
+              onClick={() => setActiveTab("details")}
+              className={`px-4 py-2 border-4 border-[#242424] font-bold ${
+                activeTab === "details" ? "bg-[#ffd670]" : "bg-[#ffffff]"
+              } text-[#242424]`}
+            >
+              {selectedPlanet.name}
+            </button>
+          )}
+        </div>
+
+        {activeTab === "gallery" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {planets.map((planet) => (
+              <PlanetCard key={planet._id} planet={planet} />
+            ))}
+            {planets.length === 0 && (
+              <div className="col-span-full text-center py-12 bg-[#ffffff] border-4 border-[#242424]">
+                <p className="text-[#242424] text-lg mb-2">No planets yet. Click above to create your first planet!</p>
+                <p className="text-[#242424] text-sm italic">Images will generate automatically after planet creation. Wait for all images to complete before exporting.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          selectedPlanet && <PlanetDetails planet={selectedPlanet} />
+        )}
+      </div>
+    </div>
+  )
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>
