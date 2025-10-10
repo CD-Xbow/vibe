@@ -6,6 +6,8 @@ These are small Vibe apps that some folks may find useful. I certainly do.
 - restyle.html is an image style transfer tools which produces a restyled form of a single image - try it http://restyle.puter.site
 - masstransfer.html.  This is a batch tool does the same thing as restyler.html to a group of images - try it http://mass-transfer.puter.site
 - Custom.html is a small app to make and save custom links
+- upc3.html - universal printer component, part of anothe project. Can open files or be open a file from the url that calls the page
+- Planet-Generator2.html - neat planetery generator with gallery. Works but a few issues to sort
 
 ## Remixes
 These are remixes of others work
