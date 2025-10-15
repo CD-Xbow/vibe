@@ -8,6 +8,7 @@ These are small Vibe apps that some folks may find useful. I certainly do.
 - Custom.html is a small app to make and save custom links
 - upc3.html - universal printer component, part of anothe project. Can open files, print test directly with header or open a file from the url that calls upc3.html
 - Planet-Generator2.html - neat planetery generator with gallery. Works but a few issues to sort
+- lcars2.html - name says it all, work in progress. Next step is to make a better header.
 
 ## Remixes
 These are remixes of others work
