@@ -1,0 +1,1025 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Made on Vibes DIY</title>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+      }
+      #container {
+        width: 100%;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <script>
+      window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+      window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+      window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.1/es2022/react.mjs",
+          "react-dom": "https://esm.sh/react-dom@19.1.1/es2022/react-dom.mjs",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.1/es2022/client.mjs",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.11?external=react,react-dom",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes",
+          "three": "https://esm.sh/three"
+        }
+      }
+    </script>
+    <script type="text/babel" data-type="module">
+      import ReactDOMClient from "react-dom/client";
+
+      // prettier-ignore
+      import React, { useState, useEffect, useRef } from "react"
+import { useFireproof } from "use-fireproof"
+
+export default function App() {
+  const { database, useLiveQuery, useDocument } = useFireproof("lcars-terminal")
+  const [currentPage, setCurrentPage] = useState("TACTICAL")
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [systemStatus, setSystemStatus] = useState("OPERATIONAL")
+  const [alertLevel, setAlertLevel] = useState("NORMAL")
+  const [isMuted, setIsMuted] = useState(true)
+  const audioRef = useRef(null)
+  const buttonSoundRef = useRef(null)
+  const iframeRefs = useRef({})
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Listen for messages from iframes
+  useEffect(() => {
+    const handleMessage = (event) => {
+      console.log("Message received from iframe:", event.data)
+      
+      if (event.data.type === "REQUEST_DATA") {
+        const shipData = {
+          type: "SHIP_DATA",
+          stardate: stardate,
+          alertLevel: alertLevel,
+          systemStatus: systemStatus,
+          coordinates: "045 MARK 7",
+          sector: "001"
+        }
+        event.source.postMessage(shipData, event.origin)
+      } else if (event.data.type === "ALERT_CHANGE") {
+        setAlertLevel(event.data.level)
+        playButtonSound()
+      } else if (event.data.type === "SAVE_DATA") {
+        database.put(event.data.payload).then(() => {
+          console.log("Data saved from iframe:", event.data.payload)
+        })
+      } else if (event.data.type === "PLAY_SOUND") {
+        playButtonSound()
+      }
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [alertLevel, systemStatus, database])
+
+  // Broadcast updates to all iframes when key data changes
+  useEffect(() => {
+    const broadcastUpdate = {
+      type: "SHIP_UPDATE",
+      stardate: stardate,
+      alertLevel: alertLevel,
+      systemStatus: systemStatus,
+      timestamp: Date.now()
+    }
+    
+    Object.values(iframeRefs.current).forEach(iframe => {
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(broadcastUpdate, "*")
+      }
+    })
+  }, [alertLevel, systemStatus, currentTime])
+
+  const playButtonSound = () => {
+    if (buttonSoundRef.current && !isMuted) {
+      buttonSoundRef.current.currentTime = 0
+      buttonSoundRef.current.play().catch(() => {})
+    }
+  }
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted)
+    if (audioRef.current) {
+      if (!isMuted) {
+        audioRef.current.pause()
+      } else {
+        audioRef.current.play().catch(() => {})
+      }
+    }
+  }
+
+  const handlePageChange = (page) => {
+    playButtonSound()
+    setCurrentPage(page)
+  }
+
+  const { doc: logEntry, merge: mergeLog, submit: submitLog } = useDocument({
+    type: "log",
+    timestamp: Date.now(),
+    entry: "",
+    officer: ""
+  })
+
+  const { doc: engineeringEntry, merge: mergeEngineering, submit: submitEngineering } = useDocument({
+    type: "engineering",
+    timestamp: Date.now(),
+    system: "",
+    status: "",
+    notes: ""
+  })
+
+  const { doc: medicalEntry, merge: mergeMedical, submit: submitMedical } = useDocument({
+    type: "medical",
+    timestamp: Date.now(),
+    patient: "",
+    condition: "",
+    treatment: ""
+  })
+
+  const { doc: navEntry, merge: mergeNav, submit: submitNav } = useDocument({
+    type: "navigation",
+    timestamp: Date.now(),
+    destination: "",
+    speed: "",
+    eta: ""
+  })
+
+  const { docs: logs } = useLiveQuery("type", { 
+    key: "log",
+    descending: true,
+    limit: 8
+  })
+
+  const { docs: engineeringReports } = useLiveQuery("type", { 
+    key: "engineering",
+    descending: true,
+    limit: 8
+  })
+
+  const { docs: medicalRecords } = useLiveQuery("type", { 
+    key: "medical",
+    descending: true,
+    limit: 8
+  })
+
+  const { docs: navLogs } = useLiveQuery("type", { 
+    key: "navigation",
+    descending: true,
+    limit: 8
+  })
+
+  const stardate = (currentTime.getTime() / 86400000 + 2451545).toFixed(2)
+
+  const handleGenerateDemo = async () => {
+    const demoLogs = [
+      { officer: "RIKER", entry: "All systems nominal. Beginning standard patrol route." },
+      { officer: "DATA", entry: "Sensor sweep complete. No anomalies detected." },
+      { officer: "LAFORGE", entry: "Warp core efficiency at 97.3%. Optimal parameters." },
+      { officer: "WORF", entry: "Security protocols updated. All stations report ready." },
+      { officer: "CRUSHER", entry: "Medical bay stocked and prepared for away missions." }
+    ]
+    
+    for (const log of demoLogs) {
+      await database.put({
+        type: "log",
+        timestamp: Date.now(),
+        entry: log.entry,
+        officer: log.officer
+      })
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
+  }
+
+  const handleEngineeringDemo = async () => {
+    const demoReports = [
+      { system: "WARP CORE", status: "OPTIMAL", notes: "Dilithium matrix at 99.7% efficiency" },
+      { system: "IMPULSE ENGINES", status: "NOMINAL", notes: "All reaction chambers firing normally" },
+      { system: "LIFE SUPPORT", status: "OPTIMAL", notes: "Atmospheric processors operating within tolerances" }
+    ]
+    
+    for (const report of demoReports) {
+      await database.put({
+        type: "engineering",
+        timestamp: Date.now(),
+        system: report.system,
+        status: report.status,
+        notes: report.notes
+      })
+      await new Promise(resolve => setTimeout(resolve, 400))
+    }
+  }
+
+  const handleMedicalDemo = async () => {
+    const demoRecords = [
+      { patient: "ENSIGN WILLIAMS", condition: "PLASMA BURN", treatment: "Dermal regenerator applied. Full recovery expected." },
+      { patient: "LT COMMANDER HAYES", condition: "ROUTINE PHYSICAL", treatment: "All biometric readings within normal parameters." },
+      { patient: "CREWMAN RODRIGUEZ", condition: "MINOR CONTUSION", treatment: "Analgesic administered. Cleared for duty." }
+    ]
+    
+    for (const record of demoRecords) {
+      await database.put({
+        type: "medical",
+        timestamp: Date.now(),
+        patient: record.patient,
+        condition: record.condition,
+        treatment: record.treatment
+      })
+      await new Promise(resolve => setTimeout(resolve, 400))
+    }
+  }
+
+  const handleNavDemo = async () => {
+    const demoNav = [
+      { destination: "STARBASE 12", speed: "WARP 5", eta: "2.4 HOURS" },
+      { destination: "DEEP SPACE NINE", speed: "WARP 7", eta: "18.6 HOURS" },
+      { destination: "EARTH", speed: "WARP 9", eta: "5.2 DAYS" }
+    ]
+    
+    for (const nav of demoNav) {
+      await database.put({
+        type: "navigation",
+        timestamp: Date.now(),
+        destination: nav.destination,
+        speed: nav.speed,
+        eta: nav.eta
+      })
+      await new Promise(resolve => setTimeout(resolve, 400))
+    }
+  }
+
+  const renderTacticalPage = () => (
+    <>
+      <div className="bg-[#242424] border-8 border-[#ff70a6] rounded-[20px] p-6">
+        <div className="text-[#ff70a6] text-3xl font-bold mb-6">WEAPONS STATUS</div>
+        
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-sm mb-3">PHASER ARRAYS</div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>DORSAL ARRAY</span>
+                <span className="text-[#70d6ff]">CHARGED</span>
+              </div>
+              <div className="h-2 bg-[#242424] rounded-full overflow-hidden">
+                <div className="h-full bg-[#e9ff70] w-[100%]"></div>
+              </div>
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>VENTRAL ARRAY</span>
+                <span className="text-[#70d6ff]">CHARGED</span>
+              </div>
+              <div className="h-2 bg-[#242424] rounded-full overflow-hidden">
+                <div className="h-full bg-[#e9ff70] w-[100%]"></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#000000] p-4 border-4 border-[#ffd670] rounded-lg">
+            <div className="text-[#ffd670] text-sm mb-3">TORPEDO BAYS</div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>FORWARD BAY</span>
+                <span>250 TORPEDOES</span>
+              </div>
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>AFT BAY</span>
+                <span>250 TORPEDOES</span>
+              </div>
+              <div className="flex justify-between text-[#e9ff70] text-xs mt-3">
+                <span>LAUNCH SYSTEMS</span>
+                <span className="text-[#70d6ff]">READY</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-[#000000] p-4 border-4 border-[#ff70a6] rounded-lg">
+            <div className="text-[#ff70a6] text-xs mb-1">SHIELDS</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">100%</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-xs mb-1">TARGETING</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">LOCKED</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ffd670] rounded-lg">
+            <div className="text-[#ffd670] text-xs mb-1">THREAT LEVEL</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">NONE</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#242424] border-8 border-[#70d6ff] rounded-[20px] p-6">
+        <div className="text-[#70d6ff] text-3xl font-bold mb-4">THREAT ASSESSMENT</div>
+        
+        <div className="bg-[#000000] p-6 border-4 border-[#ff70a6] rounded-lg mb-4">
+          <div className="text-[#ff70a6] text-lg font-bold mb-4">NEARBY VESSELS</div>
+          <div className="space-y-3">
+            <div className="p-3 bg-[#242424] border-2 border-[#70d6ff] rounded">
+              <div className="flex justify-between mb-1">
+                <span className="text-[#ffd670] font-bold">USS EXCELSIOR</span>
+                <span className="text-[#70d6ff]">FRIENDLY</span>
+              </div>
+              <div className="text-[#e9ff70] text-sm">Distance: 40,000 km | Bearing: 045 mark 7</div>
+            </div>
+            <div className="p-3 bg-[#242424] border-2 border-[#70d6ff] rounded">
+              <div className="flex justify-between mb-1">
+                <span className="text-[#ffd670] font-bold">FREIGHTER CONSTELLATION</span>
+                <span className="text-[#70d6ff]">NEUTRAL</span>
+              </div>
+              <div className="text-[#e9ff70] text-sm">Distance: 120,000 km | Bearing: 270 mark 3</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={playButtonSound} className="bg-[#ff70a6] hover:bg-[#ff9fc6] text-[#000000] font-bold py-3 px-4 rounded-lg border-4 border-[#000000]">
+            RAISE SHIELDS
+          </button>
+          <button onClick={playButtonSound} className="bg-[#ffd670] hover:bg-[#ffe690] text-[#000000] font-bold py-3 px-4 rounded-lg border-4 border-[#000000]">
+            CHARGE WEAPONS
+          </button>
+          <button onClick={playButtonSound} className="bg-[#70d6ff] hover:bg-[#90e6ff] text-[#000000] font-bold py-3 px-4 rounded-lg border-4 border-[#000000]">
+            SCAN SECTOR
+          </button>
+        </div>
+      </div>
+    </>
+  )
+
+  const renderNavigationPage = () => (
+    <>
+      <div className="bg-[#242424] border-8 border-[#70d6ff] rounded-[20px] p-6">
+        <div className="text-[#70d6ff] text-3xl font-bold mb-6">HELM CONTROL</div>
+        
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-[#000000] p-4 border-4 border-[#ff70a6] rounded-lg">
+            <div className="text-[#ff70a6] text-xs mb-2">CURRENT SPEED</div>
+            <div className="text-[#e9ff70] text-2xl font-bold">WARP 5</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ffd670] rounded-lg">
+            <div className="text-[#ffd670] text-xs mb-2">HEADING</div>
+            <div className="text-[#e9ff70] text-2xl font-bold">045 MARK 7</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-xs mb-2">AUTOPILOT</div>
+            <div className="text-[#e9ff70] text-2xl font-bold">ENGAGED</div>
+          </div>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); submitNav(); }} className="space-y-3">
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">DESTINATION</label>
+            <input
+              type="text"
+              value={navEntry.destination}
+              onChange={(e) => mergeNav({ destination: e.target.value.toUpperCase() })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+              placeholder="ENTER DESTINATION"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[#ffd670] text-sm block mb-1">WARP SPEED</label>
+              <input
+                type="text"
+                value={navEntry.speed}
+                onChange={(e) => mergeNav({ speed: e.target.value.toUpperCase() })}
+                className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+                placeholder="WARP 1-9"
+              />
+            </div>
+            <div>
+              <label className="text-[#ffd670] text-sm block mb-1">ETA</label>
+              <input
+                type="text"
+                value={navEntry.eta}
+                onChange={(e) => mergeNav({ eta: e.target.value.toUpperCase() })}
+                className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+                placeholder="TIME TO ARRIVAL"
+              />
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              onClick={playButtonSound}
+              className="bg-[#ff9770] hover:bg-[#ffb790] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              SET COURSE
+            </button>
+            <button
+              type="button"
+              onClick={() => { playButtonSound(); handleNavDemo(); }}
+              className="bg-[#70d6ff] hover:bg-[#90e6ff] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              DEMO DATA
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-[#242424] border-8 border-[#ff70a6] rounded-[20px] p-6">
+        <div className="text-[#ff70a6] text-3xl font-bold mb-4">COURSE HISTORY</div>
+        
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {navLogs.length === 0 ? (
+            <div className="text-[#ffd670] italic text-center py-4">
+              No navigation logs. Use the form above to set a course.
+            </div>
+          ) : (
+            navLogs.map((log) => (
+              <div key={log._id} className="bg-[#000000] border-4 border-[#70d6ff] rounded-lg p-3">
+                <div className="flex justify-between items-start mb-1">
+                  <div className="text-[#ffd670] font-bold">{log.destination}</div>
+                  <div className="text-[#70d6ff] text-xs">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+                <div className="text-[#e9ff70] text-sm">
+                  Speed: {log.speed} | ETA: {log.eta}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  const renderOperationsPage = () => (
+    <>
+      <div className="bg-[#242424] border-8 border-[#70d6ff] rounded-[20px] p-6">
+        <div className="text-[#70d6ff] text-3xl font-bold mb-4">CAPTAIN LOG ENTRY</div>
+        
+        <form onSubmit={(e) => { e.preventDefault(); submitLog(); }} className="space-y-3">
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">OFFICER</label>
+            <input
+              type="text"
+              value={logEntry.officer}
+              onChange={(e) => mergeLog({ officer: e.target.value.toUpperCase() })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+              placeholder="ENTER OFFICER NAME"
+            />
+          </div>
+          
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">LOG ENTRY</label>
+            <textarea
+              value={logEntry.entry}
+              onChange={(e) => mergeLog({ entry: e.target.value })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] h-20"
+              placeholder="Enter log entry..."
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              onClick={playButtonSound}
+              className="bg-[#ff9770] hover:bg-[#ffb790] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              SUBMIT ENTRY
+            </button>
+            <button
+              type="button"
+              onClick={() => { playButtonSound(); handleGenerateDemo(); }}
+              className="bg-[#70d6ff] hover:bg-[#90e6ff] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              DEMO DATA
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-[#242424] border-8 border-[#ff70a6] rounded-[20px] p-6">
+        <div className="text-[#ff70a6] text-3xl font-bold mb-4">RECENT LOG ENTRIES</div>
+        
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {logs.length === 0 ? (
+            <div className="text-[#ffd670] italic text-center py-4">
+              No log entries recorded. Click DEMO DATA to generate sample entries or submit your own above.
+            </div>
+          ) : (
+            logs.map((log) => (
+              <div key={log._id} className="bg-[#000000] border-4 border-[#70d6ff] rounded-lg p-3">
+                <div className="flex justify-between items-start mb-1">
+                  <div className="text-[#ffd670] font-bold">{log.officer}</div>
+                  <div className="text-[#70d6ff] text-xs">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+                <div className="text-[#e9ff70] text-sm">{log.entry}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  const renderEngineeringPage = () => (
+    <>
+      <div className="bg-[#242424] border-8 border-[#ffd670] rounded-[20px] p-6">
+        <div className="text-[#ffd670] text-3xl font-bold mb-6">PROPULSION SYSTEMS</div>
+        
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-sm mb-3">WARP CORE</div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>CORE TEMPERATURE</span>
+                <span>OPTIMAL</span>
+              </div>
+              <div className="h-3 bg-[#242424] rounded-full overflow-hidden">
+                <div className="h-full bg-[#e9ff70] w-[97%]"></div>
+              </div>
+              <div className="text-[#e9ff70] text-sm mt-1">97.3% EFFICIENCY</div>
+              <div className="flex justify-between text-[#e9ff70] text-xs mt-2">
+                <span>DILITHIUM MATRIX</span>
+                <span className="text-[#70d6ff]">STABLE</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#000000] p-4 border-4 border-[#ff70a6] rounded-lg">
+            <div className="text-[#ff70a6] text-sm mb-3">IMPULSE ENGINES</div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>ENGINE 1</span>
+                <span className="text-[#70d6ff]">ONLINE</span>
+              </div>
+              <div className="h-3 bg-[#242424] rounded-full overflow-hidden">
+                <div className="h-full bg-[#e9ff70] w-[85%]"></div>
+              </div>
+              <div className="flex justify-between text-[#e9ff70] text-xs">
+                <span>ENGINE 2</span>
+                <span className="text-[#70d6ff]">ONLINE</span>
+              </div>
+              <div className="h-3 bg-[#242424] rounded-full overflow-hidden">
+                <div className="h-full bg-[#e9ff70] w-[85%]"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-xs mb-1">POWER OUTPUT</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">1500 MW</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ffd670] rounded-lg">
+            <div className="text-[#ffd670] text-xs mb-1">FUEL RESERVES</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">94%</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ff70a6] rounded-lg">
+            <div className="text-[#ff70a6] text-xs mb-1">COOLANT FLOW</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">NORMAL</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#242424] border-8 border-[#70d6ff] rounded-[20px] p-6">
+        <div className="text-[#70d6ff] text-3xl font-bold mb-4">SYSTEM REPORTS</div>
+        
+        <form onSubmit={(e) => { e.preventDefault(); submitEngineering(); }} className="space-y-3 mb-4">
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">SYSTEM</label>
+            <input
+              type="text"
+              value={engineeringEntry.system}
+              onChange={(e) => mergeEngineering({ system: e.target.value.toUpperCase() })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+              placeholder="ENTER SYSTEM NAME"
+            />
+          </div>
+          
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">STATUS</label>
+            <input
+              type="text"
+              value={engineeringEntry.status}
+              onChange={(e) => mergeEngineering({ status: e.target.value.toUpperCase() })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+              placeholder="OPTIMAL / DEGRADED / OFFLINE"
+            />
+          </div>
+
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">NOTES</label>
+            <textarea
+              value={engineeringEntry.notes}
+              onChange={(e) => mergeEngineering({ notes: e.target.value })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] h-16"
+              placeholder="Additional details..."
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              onClick={playButtonSound}
+              className="bg-[#ff9770] hover:bg-[#ffb790] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              SUBMIT REPORT
+            </button>
+            <button
+              type="button"
+              onClick={() => { playButtonSound(); handleEngineeringDemo(); }}
+              className="bg-[#70d6ff] hover:bg-[#90e6ff] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              DEMO DATA
+            </button>
+          </div>
+        </form>
+
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {engineeringReports.length === 0 ? (
+            <div className="text-[#ffd670] italic text-center py-4">
+              No reports filed. Use form above to log system status.
+            </div>
+          ) : (
+            engineeringReports.map((report) => (
+              <div key={report._id} className="bg-[#000000] border-4 border-[#70d6ff] rounded-lg p-3">
+                <div className="flex justify-between items-start mb-1">
+                  <div className="text-[#ffd670] font-bold">{report.system}</div>
+                  <div className="text-[#70d6ff]">{report.status}</div>
+                </div>
+                <div className="text-[#e9ff70] text-sm">{report.notes}</div>
+                <div className="text-[#70d6ff] text-xs mt-1">
+                  {new Date(report.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  const renderSciencePage = () => (
+    <>
+      <div className="bg-[#242424] border-8 border-[#70d6ff] rounded-[20px] p-6">
+        <div className="text-[#70d6ff] text-3xl font-bold mb-4">SENSOR SYSTEMS</div>
+        
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-[#000000] p-4 border-4 border-[#ff70a6] rounded-lg">
+            <div className="text-[#ff70a6] text-xs mb-2">LONG RANGE</div>
+            <div className="text-[#e9ff70] text-2xl font-bold">ACTIVE</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ffd670] rounded-lg">
+            <div className="text-[#ffd670] text-xs mb-2">SHORT RANGE</div>
+            <div className="text-[#e9ff70] text-2xl font-bold">ACTIVE</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-xs mb-2">RESOLUTION</div>
+            <div className="text-[#e9ff70] text-2xl font-bold">HIGH</div>
+          </div>
+        </div>
+
+        <div className="bg-[#000000] p-6 border-4 border-[#ff70a6] rounded-lg mb-4">
+          <div className="text-[#ff70a6] text-lg font-bold mb-4">SENSOR READINGS</div>
+          <div className="space-y-2 text-[#e9ff70] text-sm">
+            <div className="flex justify-between">
+              <span>SECTOR:</span>
+              <span className="text-[#70d6ff]">001</span>
+            </div>
+            <div className="flex justify-between">
+              <span>OBJECTS DETECTED:</span>
+              <span className="text-[#70d6ff]">47</span>
+            </div>
+            <div className="flex justify-between">
+              <span>LIFE SIGNS:</span>
+              <span className="text-[#70d6ff]">3,847</span>
+            </div>
+            <div className="flex justify-between">
+              <span>ANOMALIES:</span>
+              <span className="text-[#70d6ff]">NONE</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#242424] border-8 border-[#ffd670] rounded-[20px] p-6">
+        <div className="text-[#ffd670] text-3xl font-bold mb-4">STELLAR CARTOGRAPHY</div>
+        <div className="bg-[#000000] p-6 border-4 border-[#70d6ff] rounded-lg">
+          <div className="text-[#70d6ff] text-sm mb-3">CURRENT LOCATION</div>
+          <div className="space-y-2 text-[#e9ff70] text-sm">
+            <div>COORDINATES: 045 MARK 7</div>
+            <div>SECTOR: 001</div>
+            <div>QUADRANT: ALPHA</div>
+            <div>NEAREST STARBASE: 12</div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+
+  const renderMedicalPage = () => (
+    <>
+      <div className="bg-[#242424] border-8 border-[#ff9770] rounded-[20px] p-6">
+        <div className="text-[#ff9770] text-3xl font-bold mb-6">MEDICAL BAY STATUS</div>
+        
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-[#000000] p-4 border-4 border-[#70d6ff] rounded-lg">
+            <div className="text-[#70d6ff] text-xs mb-1">BIOBEDS</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">12/12</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ffd670] rounded-lg">
+            <div className="text-[#ffd670] text-xs mb-1">SUPPLIES</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">FULL</div>
+          </div>
+          <div className="bg-[#000000] p-4 border-4 border-[#ff70a6] rounded-lg">
+            <div className="text-[#ff70a6] text-xs mb-1">STAFF</div>
+            <div className="text-[#e9ff70] text-3xl font-bold">ON DUTY</div>
+          </div>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); submitMedical(); }} className="space-y-3">
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">PATIENT</label>
+            <input
+              type="text"
+              value={medicalEntry.patient}
+              onChange={(e) => mergeMedical({ patient: e.target.value.toUpperCase() })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+              placeholder="ENTER PATIENT NAME"
+            />
+          </div>
+          
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">CONDITION</label>
+            <input
+              type="text"
+              value={medicalEntry.condition}
+              onChange={(e) => mergeMedical({ condition: e.target.value.toUpperCase() })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] font-bold"
+              placeholder="DIAGNOSIS OR CONDITION"
+            />
+          </div>
+
+          <div>
+            <label className="text-[#ffd670] text-sm block mb-1">TREATMENT</label>
+            <textarea
+              value={medicalEntry.treatment}
+              onChange={(e) => mergeMedical({ treatment: e.target.value })}
+              className="w-full bg-[#000000] border-4 border-[#ff70a6] rounded-lg p-2 text-[#e9ff70] h-20"
+              placeholder="Treatment administered..."
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              onClick={playButtonSound}
+              className="bg-[#ff9770] hover:bg-[#ffb790] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              FILE RECORD
+            </button>
+            <button
+              type="button"
+              onClick={() => { playButtonSound(); handleMedicalDemo(); }}
+              className="bg-[#70d6ff] hover:bg-[#90e6ff] text-[#000000] font-bold py-2 px-6 rounded-lg border-4 border-[#000000]"
+            >
+              DEMO DATA
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="bg-[#242424] border-8 border-[#70d6ff] rounded-[20px] p-6">
+        <div className="text-[#70d6ff] text-3xl font-bold mb-4">PATIENT RECORDS</div>
+        
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {medicalRecords.length === 0 ? (
+            <div className="text-[#ffd670] italic text-center py-4">
+              No patient records. Use form above to file medical reports.
+            </div>
+          ) : (
+            medicalRecords.map((record) => (
+              <div key={record._id} className="bg-[#000000] border-4 border-[#70d6ff] rounded-lg p-3">
+                <div className="flex justify-between items-start mb-1">
+                  <div className="text-[#ffd670] font-bold">{record.patient}</div>
+                  <div className="text-[#ff70a6]">{record.condition}</div>
+                </div>
+                <div className="text-[#e9ff70] text-sm">{record.treatment}</div>
+                <div className="text-[#70d6ff] text-xs mt-1">
+                  {new Date(record.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  const renderExternalPage = (filename, title, borderColor, pageName) => (
+    <div className={`bg-[#242424] border-8 border-[${borderColor}] rounded-[20px] p-6 h-full`}>
+      <div className={`text-[${borderColor}] text-3xl font-bold mb-4`}>{title}</div>
+      <div className="bg-[#000000] border-4 border-[#70d6ff] rounded-lg p-2 h-[calc(100%-60px)]">
+        <iframe 
+          ref={(el) => { if (el) iframeRefs.current[pageName] = el }}
+          src={`./${filename}`}
+          className="w-full h-full bg-[#000000] rounded"
+          title={title}
+          style={{ border: 'none' }}
+        />
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen bg-[#000000] p-4" style={{fontFamily: "'Antonio', sans-serif"}}>
+      <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@100;200;300;400;500;600;700&display=swap" rel="stylesheet" />
+      <audio ref={audioRef} loop>
+        <source src="https://freesound.org/data/previews/383/383344_5121236-lq.mp3" type="audio/mpeg" />
+      </audio>
+      <audio ref={buttonSoundRef}>
+        <source src="https://freesound.org/data/previews/156/156859_2538033-lq.mp3" type="audio/mpeg" />
+      </audio>
+
+      <div className="max-w-7xl mx-auto">
+        
+        <div className="flex gap-2 mb-4">
+          <div className="bg-[#ff9770] rounded-tl-[40px] rounded-bl-[40px] h-20 flex-1 flex items-center justify-end pr-8 text-[#000000] text-5xl font-bold">
+            LCARS 47
+          </div>
+          <div className="bg-[#ffd670] h-20 w-32 flex items-center justify-center text-[#000000] text-xl font-bold">
+            {stardate}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-4">
+          
+          <div className="col-span-3 space-y-2">
+            <div 
+              onClick={() => handlePageChange("TACTICAL")}
+              className={`${currentPage === "TACTICAL" ? "bg-[#ff9770]" : "bg-[#ff70a6]"} rounded-tr-[30px] rounded-br-[30px] h-14 flex items-center justify-end pr-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ff9fc6] border-4 border-[#000000]`}
+            >
+              TACTICAL
+            </div>
+            <div 
+              onClick={() => handlePageChange("NAVIGATION")}
+              className={`${currentPage === "NAVIGATION" ? "bg-[#90e6ff]" : "bg-[#70d6ff]"} rounded-tr-[30px] rounded-br-[30px] h-14 flex items-center justify-end pr-3 text-[#000000] font-bold cursor-pointer hover:bg-[#90e6ff] border-4 border-[#000000]`}
+            >
+              NAVIGATION
+            </div>
+            <div 
+              onClick={() => handlePageChange("OPERATIONS")}
+              className={`${currentPage === "OPERATIONS" ? "bg-[#ffe690]" : "bg-[#ffd670]"} rounded-tr-[30px] rounded-br-[30px] h-14 flex items-center justify-end pr-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ffe690] border-4 border-[#000000]`}
+            >
+              OPERATIONS
+            </div>
+            <div 
+              onClick={() => handlePageChange("ENGINEERING")}
+              className={`${currentPage === "ENGINEERING" ? "bg-[#f4ff90]" : "bg-[#e9ff70]"} rounded-tr-[30px] rounded-br-[30px] h-14 flex items-center justify-end pr-3 text-[#000000] font-bold cursor-pointer hover:bg-[#f4ff90] border-4 border-[#000000]`}
+            >
+              ENGINEERING
+            </div>
+            <div 
+              onClick={() => handlePageChange("SCIENCE")}
+              className={`${currentPage === "SCIENCE" ? "bg-[#ffb790]" : "bg-[#ff9770]"} rounded-tr-[30px] rounded-br-[30px] h-14 flex items-center justify-end pr-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ffb790] border-4 border-[#000000]`}
+            >
+              SCIENCE
+            </div>
+            <div 
+              onClick={() => handlePageChange("MEDICAL")}
+              className={`${currentPage === "MEDICAL" ? "bg-[#ff9fc6]" : "bg-[#ff70a6]"} rounded-tr-[30px] rounded-br-[30px] h-14 flex items-center justify-end pr-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ff9fc6] border-4 border-[#000000]`}
+            >
+              MEDICAL
+            </div>
+            
+            <div className="bg-[#ff70a6] h-32 rounded-tr-[40px] rounded-br-[40px] flex flex-col items-end justify-center pr-4 space-y-2 border-4 border-[#000000]">
+              <div className="text-[#000000] text-xs">SYSTEM STATUS</div>
+              <div className="text-[#000000] font-bold text-xl">{systemStatus}</div>
+            </div>
+            
+            <div className="bg-[#70d6ff] h-32 rounded-tr-[40px] rounded-br-[40px] flex flex-col items-end justify-center pr-4 space-y-2 border-4 border-[#000000]">
+              <div className="text-[#000000] text-xs">ALERT LEVEL</div>
+              <div className="text-[#000000] font-bold text-xl">{alertLevel}</div>
+            </div>
+
+            <button
+              onClick={toggleMute}
+              className={`${isMuted ? "bg-[#ff9770]" : "bg-[#70d6ff]"} hover:opacity-80 w-full h-20 rounded-full flex items-center justify-center text-[#000000] font-bold text-lg border-4 border-[#000000]`}
+            >
+              AUDIO
+            </button>
+          </div>
+
+          <div className="col-span-6 space-y-4">
+            {currentPage === "TACTICAL" && renderTacticalPage()}
+            {currentPage === "NAVIGATION" && renderNavigationPage()}
+            {currentPage === "OPERATIONS" && renderOperationsPage()}
+            {currentPage === "ENGINEERING" && renderEngineeringPage()}
+            {currentPage === "SCIENCE" && renderSciencePage()}
+            {currentPage === "MEDICAL" && renderMedicalPage()}
+            {currentPage === "SCAN" && renderExternalPage("scan.html", "SENSOR SCAN", "#70d6ff", "scan")}
+            {currentPage === "ANALYZE" && renderExternalPage("analyze.html", "DATA ANALYSIS", "#ffd670", "analyze")}
+            {currentPage === "SEARCH" && renderExternalPage("search.html", "DATABASE SEARCH", "#e9ff70", "search")}
+            {currentPage === "REPORT" && renderExternalPage("report.html", "COMMUNICATIONS", "#ff70a6", "report")}
+            {currentPage === "ARCHIVE" && renderExternalPage("archive.html", "HISTORICAL ARCHIVES", "#ff9770", "archive")}
+          </div>
+
+          <div className="col-span-3 space-y-2">
+            <div 
+              onClick={() => handlePageChange("SCAN")}
+              className={`${currentPage === "SCAN" ? "bg-[#90e6ff]" : "bg-[#70d6ff]"} rounded-tl-[30px] rounded-bl-[30px] h-14 flex items-center justify-start pl-3 text-[#000000] font-bold cursor-pointer hover:bg-[#90e6ff] border-4 border-[#000000]`}
+            >
+              SCAN
+            </div>
+            <div 
+              onClick={() => handlePageChange("ANALYZE")}
+              className={`${currentPage === "ANALYZE" ? "bg-[#ffe690]" : "bg-[#ffd670]"} rounded-tl-[30px] rounded-bl-[30px] h-14 flex items-center justify-start pl-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ffe690] border-4 border-[#000000]`}
+            >
+              ANALYZE
+            </div>
+            <div 
+              onClick={() => handlePageChange("SEARCH")}
+              className={`${currentPage === "SEARCH" ? "bg-[#f4ff90]" : "bg-[#e9ff70]"} rounded-tl-[30px] rounded-bl-[30px] h-14 flex items-center justify-start pl-3 text-[#000000] font-bold cursor-pointer hover:bg-[#f4ff90] border-4 border-[#000000]`}
+            >
+              SEARCH
+            </div>
+            <div 
+              onClick={() => handlePageChange("REPORT")}
+              className={`${currentPage === "REPORT" ? "bg-[#ff9fc6]" : "bg-[#ff70a6]"} rounded-tl-[30px] rounded-bl-[30px] h-14 flex items-center justify-start pl-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ff9fc6] border-4 border-[#000000]`}
+            >
+              REPORT
+            </div>
+            <div 
+              onClick={() => handlePageChange("ARCHIVE")}
+              className={`${currentPage === "ARCHIVE" ? "bg-[#ffb790]" : "bg-[#ff9770]"} rounded-tl-[30px] rounded-bl-[30px] h-14 flex items-center justify-start pl-3 text-[#000000] font-bold cursor-pointer hover:bg-[#ffb790] border-4 border-[#000000]`}
+            >
+              ARCHIVE
+            </div>
+
+            <div className="bg-[#ffd670] h-40 rounded-tl-[40px] rounded-bl-[40px] flex flex-col items-start justify-center pl-4 space-y-3 border-4 border-[#000000]">
+              <div className="text-[#000000] text-xs">STARDATE</div>
+              <div className="text-[#000000] font-bold text-2xl">{stardate}</div>
+              <div className="text-[#000000] text-xs mt-2">LOCAL TIME</div>
+              <div className="text-[#000000] font-bold text-lg">
+                {currentTime.toLocaleTimeString()}
+              </div>
+            </div>
+
+            <div className="bg-[#e9ff70] h-32 rounded-tl-[40px] rounded-bl-[40px] flex flex-col items-start justify-center pl-4 space-y-2 border-4 border-[#000000]">
+              <div className="text-[#000000] text-xs">COORDINATES</div>
+              <div className="text-[#000000] font-bold">045 MARK 7</div>
+              <div className="text-[#000000] text-xs">SECTOR 001</div>
+            </div>
+
+            <div className="bg-[#70d6ff] h-24 rounded-tl-[40px] rounded-bl-[40px] flex items-center justify-start pl-4 text-[#000000] font-bold text-sm border-4 border-[#000000]">
+              COMM SYSTEMS<br/>ONLINE
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <div className="bg-[#ff70a6] rounded-tr-[40px] rounded-br-[40px] h-16 flex-1 flex items-center justify-start pl-8 text-[#000000] text-sm font-bold border-4 border-[#000000]">
+            UNITED FEDERATION OF PLANETS
+          </div>
+          <div className="bg-[#70d6ff] h-16 w-40 flex items-center justify-center text-[#000000] font-bold border-4 border-[#000000]">
+            NCC-1701-D
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+      // prettier-ignore-end
+
+      const rootElement = document.getElementById("container");
+      ReactDOMClient.createRoot(rootElement).render(<App />);
+    </script>
+    <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+  </body>
+</html>
