@@ -1,6 +1,6 @@
 # VIBE SNIPPETS
 
-These are small Vibe apps that some folks may find useful. I certainly do. 
+These are small Vibe apps that some folks may find useful. I certainly do. Some are originals and some are others work remixed.
 
 ## Originals
 - restyle.html is an image style transfer tools which produces a restyled form of a single image - try it http://restyle.puter.site
@@ -17,6 +17,7 @@ These are remixes of others work
 - drummachine.html - a drum machine
 - ai303.html - a digital reprsentation of the famous Roland 303
 - psycho.html - Wild color filter tool, I've toned down the interface. http://psychodali.puter.site
+- puter-ai.html
 
 ## Use
 
