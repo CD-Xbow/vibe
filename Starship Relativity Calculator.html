@@ -1,0 +1,874 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Made on PrimalCore Builder</title>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Tailwind CDN is intentionally used for standalone HTML exports -->
+  <!-- This allows generated apps to work without build tools -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #container {
+      width: 100%;
+      height: 100vh;
+    }
+
+    #primalcore-badge {
+      position: fixed;
+      bottom: 8px;
+      right: 8px;
+      background: linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #primalcore-badge.hidden {
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+
+    #primalcore-badge:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
+    }
+
+    #primalcore-logo {
+      width: 16px;
+      height: 16px;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    #primalcore-close {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+      margin-left: 4px;
+      transition: background 0.2s ease;
+    }
+
+    #primalcore-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    #primalcore-close:active {
+      background: rgba(255, 255, 255, 0.4);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container"></div>
+  <div id="primalcore-badge">
+    <a href="https://primalcorebuilder.netlify.app" target="_blank" rel="noopener noreferrer"
+      title="Built with PrimalCore Builder"
+      style="display: flex; align-items: center; gap: 6px; color: inherit; text-decoration: none;">
+      <svg id="primalcore-logo" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 20L180 60V140L100 180L20 140V60L100 20Z" fill="currentColor" opacity="0.9" />
+        <path d="M100 50L150 75V125L100 150L50 125V75L100 50Z" fill="currentColor" opacity="0.6" />
+        <circle cx="100" cy="100" r="20" fill="currentColor" />
+      </svg>
+      <span>Made on PrimalCore</span>
+    </a>
+    <button id="primalcore-close" onclick="closePrimalCoreBanner()" aria-label="Close banner" title="Close">×</button>
+  </div>
+  <script>
+    window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+    window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+    window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+
+    function closePrimalCoreBanner() {
+      const badge = document.getElementById('primalcore-badge');
+      badge.classList.add('hidden');
+      localStorage.setItem('primalcoreBannerClosed', 'true');
+      setTimeout(() => badge.remove(), 200);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('primalcoreBannerClosed') === 'true') {
+        const badge = document.getElementById('primalcore-badge');
+        if (badge) badge.remove();
+      }
+    });
+  </script>
+  <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.2.0",
+          "react-dom": "https://esm.sh/react-dom@19.2.0",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.0/client",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.14?deps=react@19.2.0,react-dom@19.2.0",
+          "call-ai": "https://esm.sh/call-ai@latest?deps=react@19.2.0",
+          "three": "https://esm.sh/three@latest"
+        }
+      }
+    </script>
+  <script type="text/babel" data-type="module" data-presets="react">
+    import { createRoot } from "react-dom/client";
+
+    // prettier-ignore
+    import React, { useState, useEffect } from "react";
+import { callAI } from "call-ai";
+import * as THREE from "https://esm.sh/three";
+import { useFireproof } from "use-fireproof";
+
+
+export default function App() {
+  const { useDocument, useLiveQuery, database } = useFireproof(
+    "starship-relativity-db"
+  );
+  const { doc, merge } = useDocument({
+    type: "input",
+    accValue: 1,
+    accUnit: "g",
+    distValue: 1,
+    distUnit: "ly",
+    massKg: "",
+  });
+  const { docs: trips } =
+    useLiveQuery("type", { key: "trip", descending: true }) || { docs: [] };
+
+  const [error, setError] = useState("");
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.href =
+      "https://fonts.googleapis.com/css2?family=Teko:wght@300;400;500;700&display=swap";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, []);
+
+  const C = 299792458; // m/s
+  const G = 9.80665; // m/s^2
+  const AU = 1.495978707e11; // m
+  const LY = 9.4607304725808e15; // m
+  const SEC_PER_YEAR = 31557600; // 365.25 days
+
+  function toAccMS2(value, unit) {
+    const v = parseFloat(value);
+    if (!isFinite(v)) return NaN;
+    if (unit === "g") return v * G;
+    return v; // m/s^2
+  }
+
+  function toMeters(value, unit) {
+    const v = parseFloat(value);
+    if (!isFinite(v)) return NaN;
+    if (unit === "km") return v * 1e3;
+    if (unit === "au") return v * AU;
+    return v * LY; // ly
+  }
+
+  function formatSeconds(totalSeconds) {
+    if (!isFinite(totalSeconds)) return "-";
+    const sign = totalSeconds < 0 ? "-" : "";
+    let s = Math.abs(totalSeconds);
+    const years = Math.floor(s / SEC_PER_YEAR);
+    s -= years * SEC_PER_YEAR;
+    const days = Math.floor(s / 86400);
+    s -= days * 86400;
+    const hours = Math.floor(s / 3600);
+    s -= hours * 3600;
+    const minutes = Math.floor(s / 60);
+    s -= minutes * 60;
+    const seconds = Math.floor(s);
+    const parts = [];
+    if (years) parts.push(`${years}y`);
+    if (days) parts.push(`${days}d`);
+    parts.push(`${hours}h`, `${minutes}m`, `${seconds}s`);
+    return sign + parts.join(" ");
+  }
+
+  function formatNum(n, digits = 3) {
+    if (!isFinite(n)) return "-";
+    if (Math.abs(n) >= 1e6 || Math.abs(n) < 1e-2) {
+      return n.toExponential(digits);
+    }
+    return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+  }
+
+  function formatEnergyJoules(J) {
+    if (!isFinite(J)) return "-";
+    const units = [
+      { u: "J", v: 1 },
+      { u: "kJ", v: 1e3 },
+      { u: "MJ", v: 1e6 },
+      { u: "GJ", v: 1e9 },
+      { u: "TJ", v: 1e12 },
+      { u: "PJ", v: 1e15 },
+      { u: "EJ", v: 1e18 },
+    ];
+    let chosen = units[0];
+    for (let i = units.length - 1; i >= 0; i--) {
+      if (J >= units[i].v) {
+        chosen = units[i];
+        break;
+      }
+    }
+    return `${formatNum(J / chosen.v, 3)} ${chosen.u}`;
+  }
+
+  function computeTrip(accMS2, distanceM, massKg) {
+    const alpha = accMS2;
+    const D = distanceM;
+    const arg = 1 + (alpha * D) / (2 * C * C);
+    if (!(arg >= 1))
+      return { error: "Invalid parameters for relativistic solution." };
+    const theta = Math.acosh(arg);
+    const tau_half = (C / alpha) * theta; // proper time half
+    const t_half = (C / alpha) * Math.sinh(theta); // coordinate time half
+    const tau_total = 2 * tau_half;
+    const t_total = 2 * t_half;
+    const beta = Math.tanh(theta);
+    const vmax = C * beta;
+    const gamma = Math.cosh(theta);
+    let KE = null;
+    if (massKg && isFinite(parseFloat(massKg)) && parseFloat(massKg) > 0) {
+      KE = (gamma - 1) * parseFloat(massKg) * C * C;
+    }
+    return {
+      tau_seconds: tau_total,
+      t_seconds: t_total,
+      vmax,
+      beta,
+      gamma,
+      KE,
+      theta,
+      error: null,
+    };
+  }
+
+  async function handleCalculate(e) {
+    e && e.preventDefault();
+    setError("");
+    setIsCalculating(true);
+    try {
+      const accMS2 = toAccMS2(doc.accValue, doc.accUnit);
+      const distanceM = toMeters(doc.distValue, doc.distUnit.toLowerCase());
+      const mass = doc.massKg ? parseFloat(doc.massKg) : null;
+
+      if (!isFinite(accMS2) || accMS2 <= 0) {
+        setError("Acceleration must be a positive number.");
+        setIsCalculating(false);
+        return;
+      }
+      if (!isFinite(distanceM) || distanceM <= 0) {
+        setError("Distance must be a positive number.");
+        setIsCalculating(false);
+        return;
+      }
+      const out = computeTrip(accMS2, distanceM, mass);
+      if (out.error) {
+        setError(out.error);
+        setIsCalculating(false);
+        return;
+      }
+
+      const resultDoc = {
+        type: "trip",
+        createdAt: Date.now(),
+        input: {
+          accValue: parseFloat(doc.accValue),
+          accUnit: doc.accUnit,
+          distValue: parseFloat(doc.distValue),
+          distUnit: doc.distUnit,
+          massKg: mass || "",
+        },
+        computed: {
+          tau_seconds: out.tau_seconds,
+          t_seconds: out.t_seconds,
+          vmax: out.vmax,
+          beta: out.beta,
+          gamma: out.gamma,
+          KE: out.KE,
+        },
+      };
+      await database.put(resultDoc);
+      setToast("Calculation saved to history");
+      setTimeout(() => setToast(""), 2500);
+    } catch (err) {
+      setError("An unexpected error occurred.");
+    } finally {
+      setIsCalculating(false);
+    }
+  }
+
+  function autofillExample() {
+    merge({
+      accValue: 1,
+      accUnit: "g",
+      distValue: 4.37,
+      distUnit: "ly",
+      massKg: 1e6,
+    });
+    setError("");
+  }
+
+  async function clearHistory() {
+    if (!trips || trips.length === 0) {
+      setToast("History already empty");
+      setTimeout(() => setToast(""), 2000);
+      return;
+    }
+    const ok = window.confirm(
+      `Delete ${trips.length} record(s) from history? This cannot be undone.`
+    );
+    if (!ok) return;
+    try {
+      for (const t of trips) {
+        if (t && t._id) {
+          // eslint-disable-next-line no-await-in-loop
+          await database.del(t._id);
+        }
+      }
+      setToast("History cleared");
+      setTimeout(() => setToast(""), 2000);
+    } catch (err) {
+      setError("Failed to clear history.");
+    }
+  }
+
+  function exportDataAsText() {
+    try {
+      const dataToExport = (trips || []).map((t) => {
+        return {
+          id: t._id,
+          createdAt: new Date(t.createdAt).toISOString(),
+          input: t.input,
+          computed: t.computed,
+        };
+      });
+      const text = JSON.stringify(dataToExport, null, 2);
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `starship_trips_${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setToast("Export started");
+      setTimeout(() => setToast(""), 2000);
+    } catch (err) {
+      setError("Failed to export data.");
+    }
+  }
+
+  const latest = trips && trips.length > 0 ? trips[0] : null;
+  const filteredTrips = (trips || []).filter((t) => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return true;
+    const s = JSON.stringify(t).toLowerCase();
+    return s.includes(q);
+  });
+
+  return (
+    <div
+      className="min-h-screen bg-black p-6 sm:p-8"
+      style={{ fontFamily: "'Teko', ui-sans-serif, system-ui" }}
+    >
+      <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
+        {/* SIMPLE HEADER (not floating) */}
+        <div className="w-full">
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="text-4xl sm:text-5xl font-light tracking-wide text-orange-400">
+                STARSHIP RELATIVITY CALCULATOR
+              </h1>
+              <p className="italic text-[#fafafa]/80 text-lg sm:text-xl mt-1">
+                Enter acceleration and distance; compute ship time, Earth time,
+                maximum velocity, and optional kinetic energy (midpoint
+                flip-and-burn).
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowHelp(true)}
+                className="px-6 py-3 rounded-full bg-[#cfe8ff] text-[#212121] border-2 border-[#212121] shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-300"
+              >
+                Help
+              </button>
+              <button
+                onClick={exportDataAsText}
+                className="px-6 py-3 rounded-full bg-[#fff3bf] text-[#212121] border-2 border-[#212121] shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-300"
+              >
+                Export
+              </button>
+              <button
+                onClick={clearHistory}
+                className="px-6 py-3 rounded-full bg-[#ffd6d6] text-[#212121] border-2 border-[#212121] shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-300"
+              >
+                Clear History
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main panel */}
+        <div className="grid lg:grid-cols-12 gap-6">
+          {/* Input Card */}
+          <div className="lg:col-span-5">
+            <div
+              className="rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border-4 border-[#212121] bg-[#fafafa] p-6 sm:p-8"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-3xl font-light text-[#212121]">Input</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={autofillExample}
+                    className="px-5 py-2 rounded-full bg-[#cfe8ff] text-[#212121] border-2 border-[#212121] hover:scale-105 transition-all duration-300"
+                  >
+                    Quick Fill
+                  </button>
+                  <button
+                    onClick={() => {
+                      merge({ accValue: "", distValue: "", massKg: "" });
+                      setError("");
+                    }}
+                    className="px-5 py-2 rounded-full bg-[#ffd6d6] text-[#212121] border-2 border-[#212121] hover:scale-105 transition-all duration-300"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleCalculate} className="space-y-4">
+                {/* Acceleration */}
+                <div>
+                  <label className="block text-xl text-[#212121] mb-2">
+                    Acceleration
+                  </label>
+                  <div className="grid grid-cols-12 gap-3">
+                    <input
+                      aria-label="Acceleration value"
+                      inputMode="decimal"
+                      className="col-span-7 sm:col-span-8 px-4 py-3 rounded-xl border-2 border-[#212121] focus:outline-none focus:ring-4 focus:ring-[#1976d2]/30"
+                      placeholder="e.g. 1"
+                      value={doc.accValue}
+                      onChange={(e) => merge({ accValue: e.target.value })}
+                    />
+                    <div className="col-span-5 sm:col-span-4 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => merge({ accUnit: "g" })}
+                        className={`flex-1 px-4 py-3 rounded-full border-2 border-[#212121] ${
+                          doc.accUnit === "g" ? "bg-[#cfe8ff]" : "bg-white"
+                        } text-[#212121] hover:scale-105 transition-all duration-300`}
+                      >
+                        g
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => merge({ accUnit: "m/s^2" })}
+                        className={`flex-1 px-4 py-3 rounded-full border-2 border-[#212121] ${
+                          doc.accUnit === "m/s^2" ? "bg-[#cfe8ff]" : "bg-white"
+                        } text-[#212121] hover:scale-105 transition-all duration-300`}
+                      >
+                        m/s²
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[#212121]/70 mt-1">
+                    1 g = 9.80665 m/s²
+                  </p>
+                </div>
+
+                {/* Distance */}
+                <div>
+                  <label className="block text-xl text-[#212121] mb-2">
+                    Distance
+                  </label>
+                  <div className="grid grid-cols-12 gap-3">
+                    <input
+                      aria-label="Distance value"
+                      inputMode="decimal"
+                      className="col-span-7 sm:col-span-8 px-4 py-3 rounded-xl border-2 border-[#212121] focus:outline-none focus:ring-4 focus:ring-[#1976d2]/30"
+                      placeholder="e.g. 4.37"
+                      value={doc.distValue}
+                      onChange={(e) => merge({ distValue: e.target.value })}
+                    />
+                    <div className="col-span-5 sm:col-span-4 grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => merge({ distUnit: "km" })}
+                        className={`px-3 py-3 rounded-full border-2 border-[#212121] ${
+                          doc.distUnit.toLowerCase() === "km"
+                            ? "bg-[#fff3bf]"
+                            : "bg-white"
+                        } text-[#212121] hover:scale-105 transition-all duration-300`}
+                      >
+                        km
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => merge({ distUnit: "au" })}
+                        className={`px-3 py-3 rounded-full border-2 border-[#212121] ${
+                          doc.distUnit.toLowerCase() === "au"
+                            ? "bg-[#fff3bf]"
+                            : "bg-white"
+                        } text-[#212121] hover:scale-105 transition-all duration-300`}
+                      >
+                        AU
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => merge({ distUnit: "ly" })}
+                        className={`px-3 py-3 rounded-full border-2 border-[#212121] ${
+                          doc.distUnit.toLowerCase() === "ly"
+                            ? "bg-[#fff3bf]"
+                            : "bg-white"
+                        } text-[#212121] hover:scale-105 transition-all duration-300`}
+                      >
+                        ly
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Optional mass */}
+                <div>
+                  <label className="block text-xl text-[#212121] mb-2">
+                    Mass (optional, kg)
+                  </label>
+                  <input
+                    aria-label="Mass in kilograms (optional)"
+                    inputMode="decimal"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-[#212121] focus:outline-none focus:ring-4 focus:ring-[#d32f2f]/20"
+                    placeholder="e.g. 1000000"
+                    value={doc.massKg}
+                    onChange={(e) => merge({ massKg: e.target.value })}
+                  />
+                  <p className="text-sm text-[#212121]/70 mt-1">
+                    If provided, maximum kinetic energy at midpoint will be
+                    computed.
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="rounded-xl border-2 border-[#212121] bg-[#ffd6d6] text-[#212121] px-4 py-3">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="submit"
+                    onClick={handleCalculate}
+                    disabled={isCalculating}
+                    className="px-8 py-3 rounded-full bg-[#e3ffe3] text-[#212121] border-2 border-[#212121] shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCalculating ? "Calculating..." : "Calculate"}
+                  </button>
+                </div>
+
+                <div className="mt-4 text-sm text-[#212121]/70">
+                  <em>
+                    Profile: constant proper acceleration to midpoint,
+                    instantaneous flip, constant proper deceleration to rest at
+                    destination.
+                  </em>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Results Card */}
+          <div className="lg:col-span-7">
+            <div
+              className="rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border-4 border-[#212121] bg-[#fafafa] p-6 sm:p-8"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-3xl font-light text-[#212121]">Result</h2>
+              </div>
+
+              {latest ? (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="rounded-xl border-2 border-[#212121] bg-white p-4">
+                      <div className="text-xl text-[#212121]/80">Ship Time</div>
+                      <div className="text-3xl text-[#212121]">
+                        {formatSeconds(latest.computed.tau_seconds)}
+                      </div>
+                      <div className="text-base text-[#212121]/60">
+                        {formatNum(latest.computed.tau_seconds / SEC_PER_YEAR, 6)}{" "}
+                        years
+                      </div>
+                    </div>
+                    <div className="rounded-xl border-2 border-[#212121] bg-white p-4">
+                      <div className="text-xl text-[#212121]/80">Earth Time</div>
+                      <div className="text-3xl text-[#212121]">
+                        {formatSeconds(latest.computed.t_seconds)}
+                      </div>
+                      <div className="text-base text-[#212121]/60">
+                        {formatNum(latest.computed.t_seconds / SEC_PER_YEAR, 6)}{" "}
+                        years
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl border-2 border-[#212121] bg-white p-4">
+                      <div className="text-xl text-[#212121]/80">Max Velocity</div>
+                      <div className="text-3xl text-[#212121]">
+                        {formatNum(latest.computed.vmax / 1000, 3)} km/s
+                      </div>
+                      <div className="text-base text-[#212121]/60">
+                        {formatNum(latest.computed.beta * 100, 6)}% of c • γ ={" "}
+                        {formatNum(latest.computed.gamma, 6)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border-2 border-[#212121] bg-white p-4">
+                      <div className="text-xl text-[#212121]/80">
+                        Max Kinetic Energy
+                      </div>
+                      <div className="text-3xl text-[#212121]">
+                        {latest.computed.KE ? formatEnergyJoules(latest.computed.KE) : "–"}
+                      </div>
+                      <div className="text-base text-[#212121]/60">
+                        {latest.input.massKg
+                          ? `${formatNum(latest.input.massKg)} kg mass`
+                          : "Provide mass to compute"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 rounded-xl border-2 border-[#212121] bg-white p-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-[#212121]/70">Acceleration</div>
+                        <div className="text-xl text-[#212121]">
+                          {formatNum(latest.input.accValue)} {latest.input.accUnit}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-[#212121]/70">Distance</div>
+                        <div className="text-xl text-[#212121]">
+                          {formatNum(latest.input.distValue)} {latest.input.distUnit}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-[#212121]/70">Mass</div>
+                        <div className="text-xl text-[#212121]">
+                          {latest.input.massKg ? `${formatNum(latest.input.massKg)} kg` : "–"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-[#212121]/70">Profile</div>
+                        <div className="text-xl text-[#212121]">
+                          Half accelerate • Flip • Half decelerate
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border-2 border-[#212121] bg-white p-6 text-[#212121]">
+                  No calculations yet. Enter values and press Calculate.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* History */}
+        <div
+          className="rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 border-4 border-[#212121] bg-[#fafafa] p-6 sm:p-8"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-3xl font-light text-[#212121]">History</h3>
+            <div className="flex gap-3">
+              <input
+                aria-label="Search history"
+                className="px-4 py-2 rounded-full border-2 border-[#212121] bg-white text-[#212121] focus:outline-none focus:ring-4 focus:ring-[#1976d2]/30"
+                placeholder="Filter history..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+              <button
+                onClick={exportDataAsText}
+                className="px-4 py-2 rounded-full bg-[#fff3bf] text-[#212121] border-2 border-[#212121] hover:scale-105 transition-all duration-300"
+              >
+                Export
+              </button>
+              <button
+                onClick={clearHistory}
+                className="px-4 py-2 rounded-full bg-[#ffd6d6] text-[#212121] border-2 border-[#212121] hover:scale-105 transition-all duration-300"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {(filteredTrips || []).length === 0 ? (
+            <div className="rounded-xl border-2 border-[#212121] bg-white p-6 text-[#212121]">
+              History is empty.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left border-4 border-[#212121] rounded-xl overflow-hidden">
+                <thead className="bg-[#212121] text-[#fafafa] text-xl">
+                  <tr>
+                    <th className="px-4 py-3 border-r-4 border-[#212121]">Date</th>
+                    <th className="px-4 py-3 border-r-4 border-[#212121]">Accel</th>
+                    <th className="px-4 py-3 border-r-4 border-[#212121]">Distance</th>
+                    <th className="px-4 py-3 border-r-4 border-[#212121]">Ship Time</th>
+                    <th className="px-4 py-3 border-r-4 border-[#212121]">Earth Time</th>
+                    <th className="px-4 py-3">vmax</th>
+                  </tr>
+                </thead>
+                <tbody className="text-[#212121] text-xl">
+                  {filteredTrips.map((t, i) => (
+                    <tr
+                      key={t._id}
+                      className={i % 2 === 0 ? "bg-white" : "bg-[#f3f3f3]"}
+                    >
+                      <td className="px-4 py-3 border-r-4 border-[#212121] whitespace-nowrap">
+                        {new Date(t.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 border-r-4 border-[#212121]">
+                        {formatNum(t.input.accValue)} {t.input.accUnit}
+                      </td>
+                      <td className="px-4 py-3 border-r-4 border-[#212121]">
+                        {formatNum(t.input.distValue)} {t.input.distUnit}
+                      </td>
+                      <td className="px-4 py-3 border-r-4 border-[#212121]">
+                        {formatNum(t.computed.tau_seconds / SEC_PER_YEAR, 6)} y
+                      </td>
+                      <td className="px-4 py-3 border-r-4 border-[#212121]">
+                        {formatNum(t.computed.t_seconds / SEC_PER_YEAR, 6)} y
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatNum(t.computed.beta * 100, 6)}% c
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="text-sm text-[#fafafa]/70 mt-2">
+                Tip: Click Calculate again with the same inputs to record a new
+                entry.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Decorative LCARS-like bands */}
+        <div className="grid grid-cols-12 gap-2">
+          <div className="col-span-6 h-4 rounded-full bg-[#cfe8ff] shadow-xl"></div>
+          <div className="col-span-3 h-4 rounded-full bg-[#fff3bf] shadow-xl"></div>
+          <div className="col-span-3 h-4 rounded-full bg-[#ffd6d6] shadow-xl"></div>
+        </div>
+      </div>
+
+      {/* Footer message */}
+      <footer className="mt-8 max-w-6xl mx-auto text-center">
+        <div
+          className="inline-block rounded-xl px-6 py-3 bg-[#111111] text-[#fafafa] border-2 border-[#212121] shadow-xl"
+        >
+          Made with Vibes despite great aggravation by CD Xbow
+        </div>
+      </footer>
+
+      {/* TOAST */}
+      {toast && (
+        <div className="fixed right-6 bottom-6 z-50">
+          <div className="rounded-xl bg-[#222222] text-[#fafafa] px-4 py-2 shadow-2xl">
+            {toast}
+          </div>
+        </div>
+      )}
+
+      {/* HELP MODAL */}
+      {showHelp && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setShowHelp(false)}
+          aria-modal="true"
+          role="dialog"
+          aria-labelledby="help-title"
+        >
+          <div
+            className="relative w-full max-w-4xl h-[80vh] bg-[#fafafa] border-4 border-[#212121] rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b-4 border-[#212121] bg-[#fff3bf]">
+              <h4 id="help-title" className="text-2xl font-light text-[#212121]">
+                Help
+              </h4>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="px-4 py-2 rounded-full bg-[#ffd6d6] text-[#212121] border-2 border-[#212121] hover:scale-105 transition-all duration-300"
+              >
+                Close
+              </button>
+            </div>
+            <iframe title="Help" src="help.html" className="w-full h-full" sandbox="" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+    // prettier-ignore-end
+
+    try {
+      const rootElement = document.getElementById("container");
+      if (!rootElement) throw new Error('Container not found');
+      if (typeof App === 'undefined') throw new Error('App not defined');
+      
+      const root = createRoot(rootElement);
+      root.render(<App />);
+    } catch (error) {
+      console.error('⚠️ Export Error:', error);
+      document.body.innerHTML = `<div style="padding: 40px; text-align: center; font-family: system-ui; max-width: 600px; margin: 100px auto;"><h1 style="color: #ef4444; margin-bottom: 20px;">⚠️ Export Error</h1><p style="color: #64748b; margin-bottom: 10px;">The app could not be loaded.</p><p style="color: #ef4444; font-size: 14px; font-weight: 600;">${error.message}</p><p style="color: #64748b; font-size: 12px; margin-top: 20px;">Check the browser console for details.</p></div>`;
+    }
+  </script>
+  <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+    -->
+</body>
+
+</html>

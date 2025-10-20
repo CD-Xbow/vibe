@@ -1,0 +1,968 @@
+<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Made on PrimalCore Builder</title><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script><style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #container {
+      width: 100%;
+      height: 100vh;
+    }
+
+    #primalcore-badge {
+      position: fixed;
+      bottom: 8px;
+      right: 8px;
+      background: linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      z-index: 9999;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #primalcore-badge.hidden {
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+
+    #primalcore-badge:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
+    }
+
+    #primalcore-logo {
+      width: 16px;
+      height: 16px;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    #primalcore-close {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+      margin-left: 4px;
+      transition: background 0.2s ease;
+    }
+
+    #primalcore-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    #primalcore-close:active {
+      background: rgba(255, 255, 255, 0.4);
+    }
+  </style><meta property="og:title" content="LCARS-personal-log" /><meta property="og:description" content="An app created with Vibes DIY" /><meta property="og:type" content="website" /><meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content="LCARS-personal-log" /><meta name="twitter:description" content="An app created with Vibes DIY" /></head><body><div id="container"></div><div id="primalcore-badge"><a href="https://primalcorebuilder.netlify.app" target="_blank" rel="noopener noreferrer"
+      title="Built with PrimalCore Builder"
+      style="display: flex; align-items: center; gap: 6px; color: inherit; text-decoration: none;"><svg id="primalcore-logo" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M100 20L180 60V140L100 180L20 140V60L100 20Z" fill="currentColor" opacity="0.9" /><path d="M100 50L150 75V125L100 150L50 125V75L100 50Z" fill="currentColor" opacity="0.6" /><circle cx="100" cy="100" r="20" fill="currentColor" /></svg><span>Made on PrimalCore</span></a><button id="primalcore-close" onclick="closePrimalCoreBanner()" aria-label="Close banner" title="Close">×</button></div><script>
+    window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+    window.CALLAI_CHAT_URL = "https://vibes-diy-api.com/";
+    window.CALLAI_IMG_URL = "https://vibes-diy-api.com/";
+
+    function closePrimalCoreBanner() {
+      const badge = document.getElementById('primalcore-badge');
+      badge.classList.add('hidden');
+      localStorage.setItem('primalcoreBannerClosed', 'true');
+      setTimeout(() => badge.remove(), 200);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('primalcoreBannerClosed') === 'true') {
+        const badge = document.getElementById('primalcore-badge');
+        if (badge) badge.remove();
+      }
+    });
+  </script><script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.2.0",
+          "react-dom": "https://esm.sh/react-dom@19.2.0",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.0/client",
+          "use-fireproof": "https://esm.sh/use-fireproof@0.23.14?deps=react@19.2.0,react-dom@19.2.0",
+          "call-ai": "https://esm.sh/call-ai@latest?deps=react@19.2.0",
+          "three": "https://esm.sh/three@latest"
+        }
+      }
+    </script><script type="text/babel" data-type="module" data-presets="react">
+    import { createRoot } from "react-dom/client";
+
+    // prettier-ignore
+    import React, { useState, useEffect, useMemo, useRef } from "react";
+import { callAI } from "call-ai";
+import * as THREE from "https://esm.sh/three";
+import { useFireproof } from "use-fireproof";
+
+
+export default function App() {
+  const DB_NAME = "personal-log-db";
+  const { database, useLiveQuery, useDocument } = useFireproof(DB_NAME);
+
+  // Theme (TOS vs TNG LCARS styles)
+  const [theme, setTheme] = useState(
+    () =>
+      typeof window !== "undefined"
+        ? localStorage.getItem("personal-log-theme") || "TNG"
+        : "TNG"
+  );
+
+  // Sound effects toggle
+  const [soundEnabled, setSoundEnabled] = useState(
+    () =>
+      typeof window !== "undefined"
+        ? localStorage.getItem("personal-log-sound") !== "false"
+        : true
+  );
+
+  const audioContextRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem("personal-log-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem("personal-log-sound", soundEnabled ? "true" : "false");
+  }, [soundEnabled]);
+
+  // Initialize Web Audio API
+  useEffect(() => {
+    if (typeof window !== "undefined" && !audioContextRef.current) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioContextRef.current = new AudioContext();
+    }
+  }, []);
+
+  // Sound generation function
+  const playButtonSound = (type = "standard") => {
+    if (!soundEnabled || !audioContextRef.current) return;
+
+    const ctx = audioContextRef.current;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    // Different sounds for different button types
+    if (type === "primary") {
+      // Higher pitched beep for primary actions
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.1);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      osc.start(now);
+      osc.stop(now + 0.15);
+    } else if (type === "danger") {
+      // Lower warning tone for delete/danger
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.2);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else {
+      // Standard UI beep
+      osc.frequency.setValueAtTime(660, now);
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+  };
+
+  // New Note form (Fireproof document state, not useState)
+  const {
+    doc: newNote,
+    merge: mergeNewNote,
+    reset: resetNewNote,
+  } = useDocument({
+    type: "note",
+    title: "",
+    content: "",
+    tagsText: "",
+    _files: {},
+  });
+
+  // AI generation
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const [aiPreview, setAiPreview] = useState("");
+  const [toast, setToast] = useState(null);
+
+  // Search and filters
+  const [search, setSearch] = useState("");
+  const [activeTag, setActiveTag] = useState("");
+
+  // Modal for viewing note
+  const [viewingNote, setViewingNote] = useState(null);
+
+  // Query notes (most recent first by _id)
+  const { docs: notesRaw } = useLiveQuery("type", {
+    key: "note",
+    descending: true,
+  }) || { docs: [] };
+
+  // Derived notes with filtering
+  const notes = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    const tag = activeTag.trim().toLowerCase();
+    return (notesRaw || []).filter((n) => {
+      const tags = Array.isArray(n.tags) ? n.tags : [];
+      const textMatch =
+        !s ||
+        (n.title || "").toLowerCase().includes(s) ||
+        (n.content || "").toLowerCase().includes(s) ||
+        tags.join(" ").toLowerCase().includes(s);
+      const tagMatch = !tag || tags.map((t) => t.toLowerCase()).includes(tag);
+      return textMatch && tagMatch;
+    });
+  }, [notesRaw, search, activeTag]);
+
+  // Unique tags
+  const allTags = useMemo(() => {
+    const set = new Set();
+    (notesRaw || []).forEach((n) => {
+      (n.tags || []).forEach((t) => set.add(t));
+    });
+    return Array.from(set).sort();
+  }, [notesRaw]);
+
+  // Util: show toast
+  const showToast = (msg, type = "info") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  // Send note to another app via postMessage
+  const sendNoteToApp = (note) => {
+    playButtonSound("primary");
+
+    const noteData = {
+      type: "PERSONAL_LOG_ENTRY",
+      payload: {
+        id: note._id,
+        title: note.title || "Untitled",
+        content: note.content || "",
+        tags: note.tags || [],
+        createdAt: note.createdAt,
+        starred: note.starred || false,
+        source: "Personal Log",
+      },
+      timestamp: Date.now(),
+    };
+
+    // Send to parent window if in iframe
+    if (window.parent !== window) {
+      window.parent.postMessage(noteData, "*");
+      showToast("Note sent to parent app", "success");
+    }
+
+    // Send to all open windows/tabs with same origin
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage(noteData, "*");
+      showToast("Note sent to opener window", "success");
+    }
+
+    // Broadcast to all windows (using BroadcastChannel if available)
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel("personal-log-channel");
+      channel.postMessage(noteData);
+      channel.close();
+      showToast("Note broadcast to other tabs", "success");
+    }
+
+    // Also log to console for debugging
+    console.log("Note sent via postMessage:", noteData);
+  };
+
+  // Listen for incoming messages (optional - for receiving notes from other apps)
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === "PERSONAL_LOG_ENTRY") {
+        console.log("Received note from another app:", event.data);
+        // Could auto-import received notes here if desired
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, []);
+
+  // Create note
+  const handleCreateNote = async () => {
+    playButtonSound("primary");
+    const title = (newNote.title || "").trim();
+    const content = (newNote.content || "").trim();
+    const tagsArray = (newNote.tagsText || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (!title && !content) {
+      showToast("Add a title or content to save a note.", "warn");
+      return;
+    }
+    const doc = {
+      type: "note",
+      title,
+      content,
+      tags: tagsArray,
+      _files: newNote._files || {},
+      createdAt: Date.now(),
+      starred: false,
+    };
+    await database.put(doc);
+    resetNewNote();
+    showToast("Note saved", "success");
+  };
+
+  // Delete note
+  const handleDeleteNote = async (note) => {
+    playButtonSound("danger");
+    const ok = window.confirm("Delete this note? This cannot be undone.");
+    if (!ok) return;
+    await database.del(note._id);
+    showToast("Note deleted", "success");
+  };
+
+  // Star note
+  const toggleStar = async (note) => {
+    playButtonSound("standard");
+    await database.put({ ...note, starred: !note.starred });
+  };
+
+  // Export note as text file
+  const exportNote = (note) => {
+    playButtonSound("standard");
+    const title = note.title || "Untitled";
+    const content = note.content || "";
+    const tags = (note.tags || []).length > 0 ? `\n\nTags: ${note.tags.join(", ")}` : "";
+    const attachments = note._files && Object.keys(note._files).length > 0
+      ? `\n\nAttachments: ${Object.keys(note._files).join(", ")}`
+      : "";
+
+    const noteText = `${title}\n${"=".repeat(title.length)}\n\n${content}${tags}${attachments}`;
+
+    const blob = new Blob([noteText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast("Note exported", "success");
+  };
+
+  // Drag and drop files onto the new note form
+  const onDropFiles = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const items = e.dataTransfer.items;
+    const files = e.dataTransfer.files;
+    if (items && items.length > 0) {
+      const next = { ...(newNote._files || {}) };
+      for (let i = 0; i < items.length; i++) {
+        const file = items[i].getAsFile && items[i].getAsFile();
+        if (file) next[file.name] = file;
+      }
+      mergeNewNote({ _files: next });
+      showToast("Files added to note", "success");
+      return;
+    }
+    if (files && files.length > 0) {
+      const next = { ...(newNote._files || {}) };
+      for (let i = 0; i < files.length; i++) {
+        next[files[i].name] = files[i];
+      }
+      mergeNewNote({ _files: next });
+      showToast("Files added to note", "success");
+    }
+  };
+
+  // Prevent default drag behaviors
+  useEffect(() => {
+    const prevent = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
+
+  // AI generation that saves structured results as individual docs
+  const generateWithAI = async (prompt) => {
+    playButtonSound("primary");
+    if (!prompt.trim()) {
+      showToast("Enter a prompt first.", "warn");
+      return;
+    }
+    setAiStreaming(true);
+    setAiPreview("");
+    try {
+      const generator = await callAI(
+        [
+          {
+            role: "user",
+            content:
+              "Create concise notes as JSON. Keep text under 150 words each.",
+          },
+          { role: "user", content: prompt },
+        ],
+        {
+          stream: true,
+          schema: {
+            properties: {
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    content: { type: "string" },
+                    tags: {
+                      type: "array",
+                      items: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }
+      );
+      let finalResponse = "";
+      for await (const chunk of generator) {
+        finalResponse = chunk;
+        setAiPreview(chunk);
+      }
+      const data = JSON.parse(finalResponse || "{}");
+      const items = Array.isArray(data.items) ? data.items : [];
+      for (const it of items) {
+        await database.put({
+          type: "note",
+          title: it.title || "Untitled",
+          content: it.content || "",
+          tags: Array.isArray(it.tags) ? it.tags.filter(Boolean) : [],
+          _files: {},
+          createdAt: Date.now(),
+          starred: false,
+          source: "ai",
+        });
+      }
+      showToast(`Added ${items.length} AI notes`, "success");
+    } catch (err) {
+      console.error(err);
+      showToast("AI error: could not parse or generate.", "error");
+    } finally {
+      setAiStreaming(false);
+    }
+  };
+
+  // Demo data uses same AI function (not a separate implementation)
+  const handleDemoData = () => {
+    playButtonSound("primary");
+    generateWithAI(
+      "Generate 4 notes about personal productivity with brief tips and 2-4 simple tags each."
+    );
+  };
+
+  // TOS Theme - Bright, vibrant colors from original series (green changed to pale yellow)
+  const tosColors = {
+    bgApp: "bg-[#000000]",
+    textBase: "text-[#ffffff]",
+    textDim: "text-[#ffcc00]",
+    cardBg: "bg-[#0a0a0a]",
+    borderAccent: "border-2 border-[#00ffff]",
+    btnBase: "px-6 py-3 rounded-[32px] font-light text-lg transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none uppercase tracking-wider",
+    btnPrimary: "bg-[#ff0066] text-[#ffffff] hover:bg-[#ff3388]",
+    btnSecondary: "bg-[#ffff99] text-[#000000] hover:bg-[#ffffbb]",
+    btnDanger: "bg-[#ff9900] text-[#000000] hover:bg-[#ffaa33]",
+    btnNeutral: "bg-[#00ffff] text-[#000000] hover:bg-[#33ffff]",
+    inputBase: "w-full px-5 py-4 rounded-[24px] bg-[#000000] text-[#ffffff] border-2 border-[#ffff99] placeholder-[#666666] focus:outline-none focus:border-[#ff0066] font-light text-lg",
+    accentPulse: "bg-[#ff0066]",
+  };
+
+  // TNG Theme - Subdued, professional LCARS from Next Generation
+  const tngColors = {
+    bgApp: "bg-[#000000]",
+    textBase: "text-[#ffcc99]",
+    textDim: "text-[#cc99ff]",
+    cardBg: "bg-[#1a1a1a]",
+    borderAccent: "border-2 border-[#9999cc]",
+    btnBase: "px-6 py-3 rounded-[32px] font-light text-lg transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none uppercase tracking-wider",
+    btnPrimary: "bg-[#cc99ff] text-[#000000] hover:bg-[#9966cc]",
+    btnSecondary: "bg-[#9999ff] text-[#000000] hover:bg-[#7777cc]",
+    btnDanger: "bg-[#ff6666] text-[#000000] hover:bg-[#ff9999]",
+    btnNeutral: "bg-[#666699] text-[#ffcc99] hover:bg-[#7777aa]",
+    inputBase: "w-full px-5 py-4 rounded-[24px] bg-[#000000] text-[#ffcc99] border-2 border-[#9999ff] placeholder-[#666699] focus:outline-none focus:border-[#cc99ff] font-light text-lg",
+    accentPulse: "bg-[#9999cc]",
+  };
+
+  const colors = theme === "TOS" ? tosColors : tngColors;
+
+  const {
+    bgApp,
+    textBase,
+    textDim,
+    cardBg,
+    borderAccent,
+    btnBase,
+    btnPrimary,
+    btnSecondary,
+    btnDanger,
+    btnNeutral,
+    inputBase,
+    accentPulse,
+  } = colors;
+
+  return (
+    <div><style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@300&display=swap');
+        
+        * {
+          font-family: 'Teko', sans-serif;
+          font-weight: 300;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        
+        .lcars-pulse {
+          animation: pulse 2s ease-in-out infinite;
+        }
+      `}</style><div
+        className={`${bgApp} ${textBase} min-h-screen transition-colors duration-300`}
+      >
+        {/* Header */}
+        <header
+          className={`sticky top-0 z-50 ${cardBg} ${borderAccent} h-16 flex items-center transition-all duration-300`}
+        ><div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between"><div className="flex items-center gap-4"><div className={`w-3 h-12 rounded-[24px] ${accentPulse} lcars-pulse`} /><div className="flex items-baseline gap-2"><h1 className="text-4xl font-light tracking-widest uppercase">Personal Log</h1><span className={`text-2xl font-light ${textDim}`}>: ENSIGN - Lucy Fane</span></div></div><div className="flex items-center gap-3"><button
+                aria-label="Toggle sound effects"
+                className={`${btnBase} ${soundEnabled ? btnPrimary : btnNeutral}`}
+                onClick={() => {
+                  playButtonSound("standard");
+                  setSoundEnabled(!soundEnabled);
+                }}
+                title={soundEnabled ? "Sound On" : "Sound Off"}
+              >
+                {soundEnabled ? "Sound On" : "Sound Off"}
+              </button><button
+                aria-label="Switch to TOS theme"
+                className={`${btnBase} ${theme === "TOS" ? btnPrimary : btnNeutral}`}
+                onClick={() => {
+                  playButtonSound("standard");
+                  setTheme("TOS");
+                }}
+                title="Original Series LCARS"
+              >
+                TOS
+              </button><button
+                aria-label="Switch to TNG theme"
+                className={`${btnBase} ${theme === "TNG" ? btnPrimary : btnNeutral}`}
+                onClick={() => {
+                  playButtonSound("standard");
+                  setTheme("TNG");
+                }}
+                title="Next Generation LCARS"
+              >
+                TNG
+              </button></div></div></header>
+
+        {/* Content */}
+        <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+          {/* Intro + Search */}
+          <section
+            className={`${cardBg} ${borderAccent} rounded-[32px] p-8`}
+          ><div className="flex flex-col md:flex-row md:items-center gap-6"><p className={`italic ${textDim} flex-1 text-xl`}>
+                Capture ideas instantly, organize with tags, drop files, and
+                generate structured notes with AI. Minimal, fast, and ready for
+                work.
+              </p><div className="flex-1 flex gap-3"><input
+                  aria-label="Search notes"
+                  className={inputBase}
+                  placeholder="Search notes by text or tag"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                /><button
+                  className={`${btnBase} ${btnNeutral}`}
+                  onClick={() => {
+                    playButtonSound("standard");
+                    setSearch("");
+                    setActiveTag("");
+                  }}
+                  title="Clear search"
+                >
+                  Clear
+                </button></div></div>
+            {allTags.length > 0 && (
+              <div className="mt-6 flex flex-wrap gap-3"><button
+                  className={`${btnBase} ${btnNeutral} ${!activeTag ? `ring-4 ${theme === "TOS" ? "ring-[#ff0066]" : "ring-[#cc99ff]"}` : ""}`}
+                  onClick={() => {
+                    playButtonSound("standard");
+                    setActiveTag("");
+                  }}
+                >
+                  All
+                </button>
+                {allTags.map((t) => (
+                  <button
+                    key={t}
+                    className={`${btnBase} ${btnNeutral} ${activeTag === t ? `ring-4 ${theme === "TOS" ? "ring-[#ff0066]" : "ring-[#cc99ff]"}` : ""}`}
+                    onClick={() => {
+                      playButtonSound("standard");
+                      setActiveTag(t);
+                    }}
+                    title={`Filter by ${t}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Create Note + AI */}
+          <section className="grid md:grid-cols-2 gap-8">
+            {/* Create Note */}
+            <div
+              className={`${cardBg} ${borderAccent} rounded-[32px] p-8`}
+              onDrop={onDropFiles}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            ><div className="flex items-center justify-between mb-6"><h2 className="text-3xl font-light tracking-wider uppercase">New Entry</h2><div className="flex items-center gap-3"><label
+                    className={`${btnBase} ${btnSecondary} cursor-pointer`}
+                    title="Attach files"
+                    onClick={() => playButtonSound("standard")}
+                  >
+                    Attach
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const next = { ...(newNote._files || {}) };
+                        const files = e.target.files || [];
+                        for (let i = 0; i < files.length; i++) {
+                          next[files[i].name] = files[i];
+                        }
+                        mergeNewNote({ _files: next });
+                        showToast("Files added to note", "success");
+                        e.target.value = "";
+                      }}
+                    /></label><button className={`${btnBase} ${btnPrimary}`} onClick={handleCreateNote}>
+                    Save Entry
+                  </button></div></div><div className="space-y-4"><input
+                  className={inputBase}
+                  placeholder="Title"
+                  value={newNote.title}
+                  onChange={(e) => mergeNewNote({ title: e.target.value })}
+                /><textarea
+                  className={`${inputBase} min-h-[160px]`}
+                  placeholder="Write your entry"
+                  value={newNote.content}
+                  onChange={(e) => mergeNewNote({ content: e.target.value })}
+                /><input
+                  className={inputBase}
+                  placeholder="Tags comma separated"
+                  value={newNote.tagsText}
+                  onChange={(e) => mergeNewNote({ tagsText: e.target.value })}
+                /><div
+                  className={`mt-3 border-2 border-dashed rounded-[24px] p-6 ${theme === "TOS" ? "border-[#ffff99]" : "border-[#9999ff]"} text-lg ${textDim}`}
+                >
+                  Drag and drop files here to attach. Files are securely stored in
+                  the note.
+                  {newNote._files && Object.keys(newNote._files).length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {Object.keys(newNote._files).map((k) => (
+                        <span
+                          key={k}
+                          className={`px-4 py-2 rounded-[24px] ${btnBase} ${btnNeutral} text-base`}
+                        >
+                          {k}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div></div></div>
+
+            {/* AI Note Maker */}
+            <div
+              className={`${cardBg} ${borderAccent} rounded-[32px] p-8`}
+            ><div className="flex items-center justify-between mb-6"><h2 className="text-3xl font-light tracking-wider uppercase">AI Generator</h2><div className="flex items-center gap-3"><button className={`${btnBase} ${btnSecondary}`} onClick={handleDemoData}>
+                    Demo Data
+                  </button><button
+                    className={`${btnBase} ${btnPrimary}`}
+                    onClick={() => generateWithAI(aiPrompt)}
+                    disabled={aiStreaming}
+                  >
+                    {aiStreaming ? "Generating" : "Generate"}
+                  </button></div></div><textarea
+                className={`${inputBase} min-h-[140px]`}
+                placeholder="Describe the notes you want eg project plan outline meeting agenda study summaries"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+              /><div className="mt-4"><div className={`text-base ${textDim} mb-2 uppercase`}>
+                  Streaming Preview
+                </div><div
+                  className={`rounded-[24px] p-4 text-base overflow-auto max-h-48 bg-[#000000] border-2 ${theme === "TOS" ? "border-[#00ffff]" : "border-[#666699]"}`}
+                >
+                  {aiStreaming ? (
+                    <pre className="whitespace-pre-wrap">{aiPreview}</pre>
+                  ) : (
+                    <div className={`${textDim}`}>No active generation</div>
+                  )}
+                </div></div></div></section>
+
+          {/* Notes List */}
+          <section className="space-y-6"><div className="flex items-center justify-between"><h3 className="text-3xl font-light tracking-wider uppercase">Your Entries</h3><div className={`${textDim} text-xl`}>
+                {notes.length} of {notesRaw?.length || 0} shown
+              </div></div>
+
+            {notes.length === 0 ? (
+              <div
+                className={`${cardBg} ${borderAccent} rounded-[32px] p-12 text-center`}
+              ><div className="text-6xl mb-4 lcars-pulse">⚠</div><div className="text-4xl font-light mb-2 uppercase tracking-wider">No Entries</div><div className={`${textDim} mb-6 text-xl`}>
+                  Create your first note or use AI to generate examples
+                </div><div className="flex justify-center gap-4"><button className={`${btnBase} ${btnPrimary}`} onClick={handleCreateNote}>
+                    Save Empty Entry
+                  </button><button className={`${btnBase} ${btnSecondary}`} onClick={handleDemoData}>
+                    Demo Data
+                  </button></div></div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {notes.map((n) => (
+                  <article
+                    key={n._id}
+                    className={`group ${cardBg} border-2 ${theme === "TOS" ? "border-[#00ffff]" : "border-[#9999ff]"} rounded-[32px] p-6 transition-all duration-300 hover:scale-[1.02] ${theme === "TOS" ? "hover:border-[#ff0066]" : "hover:border-[#cc99ff]"}`}
+                    title={n.title || "Note"}
+                  ><div className="flex items-start justify-between gap-4"><h4 className="text-2xl font-light leading-tight line-clamp-2 uppercase tracking-wide">
+                        {n.title || "Untitled"}
+                      </h4><button
+                        className={`${btnBase} ${btnNeutral} px-4 py-2 text-base`}
+                        onClick={() => toggleStar(n)}
+                        title={n.starred ? "Unstar" : "Star"}
+                      >
+                        {n.starred ? "Star" : "Unstar"}
+                      </button></div><div className={`mt-2 text-base ${textDim}`}>
+                      {n.createdAt
+                        ? new Date(n.createdAt).toLocaleString()
+                        : ""}
+                    </div><p className={`mt-3 text-lg ${textDim} line-clamp-4`}>
+                      {n.content || "No content"}
+                    </p>
+
+                    {(n.tags || []).length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {n.tags.map((t, i) => (
+                          <button
+                            key={i}
+                            className={`${btnBase} ${btnNeutral} text-base px-4 py-1`}
+                            onClick={() => {
+                              playButtonSound("standard");
+                              setActiveTag(t);
+                            }}
+                            title={`Filter by ${t}`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-5 flex flex-wrap items-center gap-2"><button
+                        className={`${btnBase} ${btnSecondary} text-base`}
+                        onClick={() => {
+                          playButtonSound("standard");
+                          setViewingNote(n);
+                        }}
+                      >
+                        View
+                      </button><button
+                        className={`${btnBase} ${btnSecondary} text-base`}
+                        onClick={async () => {
+                          playButtonSound("standard");
+                          await database.put({
+                            ...n,
+                            _id: undefined,
+                            createdAt: Date.now(),
+                            source: n.source || "duplicate",
+                          });
+                          showToast("Note duplicated", "success");
+                        }}
+                      >
+                        Duplicate
+                      </button><button
+                        className={`${btnBase} ${btnSecondary} text-base`}
+                        onClick={() => exportNote(n)}
+                      >
+                        Export
+                      </button><button
+                        className={`${btnBase} ${btnPrimary} text-base`}
+                        onClick={() => sendNoteToApp(n)}
+                        title="Send note to another app via postMessage"
+                      >
+                        Send
+                      </button><button
+                        className={`${btnBase} ${btnDanger} text-base`}
+                        onClick={() => handleDeleteNote(n)}
+                      >
+                        Delete
+                      </button></div>
+
+                    {n._files && Object.keys(n._files).length > 0 && (
+                      <div className="mt-4"><div className={`text-base ${textDim} mb-2 uppercase`}>
+                          Attachments
+                        </div><div className="flex flex-wrap gap-2">
+                          {Object.keys(n._files).map((fileName) => (
+                            <span
+                              key={fileName}
+                              className={`${btnBase} ${btnNeutral} text-base px-4 py-1`}
+                            >
+                              {fileName}
+                            </span>
+                          ))}
+                        </div></div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section></main>
+
+        {/* Note View Modal */}
+        {viewingNote && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black bg-opacity-80"><div
+              className={`${cardBg} ${borderAccent} rounded-[32px] max-w-5xl w-full max-h-[90vh] overflow-auto`}
+            ><div className="p-8"><div className="flex items-start justify-between gap-6 mb-6"><h2 className="text-4xl font-light uppercase tracking-wider">
+                    {viewingNote.title || "Untitled"}
+                  </h2><button
+                    className={`${btnBase} ${btnNeutral}`}
+                    onClick={() => {
+                      playButtonSound("standard");
+                      setViewingNote(null);
+                    }}
+                  >
+                    Close
+                  </button></div><div className={`mb-6 text-lg ${textDim}`}>
+                  {viewingNote.createdAt
+                    ? new Date(viewingNote.createdAt).toLocaleString()
+                    : ""}
+                </div><div className="mb-8"><div className="text-xl leading-relaxed whitespace-pre-wrap">
+                    {viewingNote.content || "No content"}
+                  </div></div>
+
+                {(viewingNote.tags || []).length > 0 && (
+                  <div className="mb-8"><h4 className="text-lg font-light mb-3 uppercase">Tags</h4><div className="flex flex-wrap gap-3">
+                      {viewingNote.tags.map((t, i) => (
+                        <span
+                          key={i}
+                          className={`${btnBase} ${btnNeutral} text-lg px-5 py-2`}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div></div>
+                )}
+
+                {viewingNote._files && Object.keys(viewingNote._files).length > 0 && (
+                  <div className="mb-8"><h4 className="text-lg font-light mb-3 uppercase">Attachments</h4><div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {Object.keys(viewingNote._files).map((fileName) => (
+                        <div
+                          key={fileName}
+                          className={`${btnBase} ${btnNeutral} text-lg px-5 py-3 text-center`}
+                        >
+                          {fileName}
+                        </div>
+                      ))}
+                    </div></div>
+                )}
+
+                <div className="flex justify-end gap-3"><button
+                    className={`${btnBase} ${btnSecondary}`}
+                    onClick={() => exportNote(viewingNote)}
+                  >
+                    Export
+                  </button><button
+                    className={`${btnBase} ${btnPrimary}`}
+                    onClick={() => sendNoteToApp(viewingNote)}
+                  >
+                    Send
+                  </button><button
+                    className={`${btnBase} ${btnSecondary}`}
+                    onClick={() => {
+                      playButtonSound("standard");
+                      toggleStar(viewingNote);
+                      setViewingNote({ ...viewingNote, starred: !viewingNote.starred });
+                    }}
+                  >
+                    {viewingNote.starred ? "Starred" : "Star"}
+                  </button></div></div></div></div>
+        )}
+
+        {/* Toast */}
+        {toast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"><div
+              className={`rounded-[32px] px-8 py-4 text-xl ${toast.type === "success"
+                  ? theme === "TOS" ? "bg-[#ffff99] text-[#000000]" : "bg-[#99cc99] text-[#000000]"
+                  : toast.type === "error"
+                    ? theme === "TOS" ? "bg-[#ff0066] text-[#ffffff]" : "bg-[#ff6666] text-[#000000]"
+                    : toast.type === "warn"
+                      ? theme === "TOS" ? "bg-[#ffcc00] text-[#000000]" : "bg-[#ffcc66] text-[#000000]"
+                      : theme === "TOS" ? "bg-[#00ffff] text-[#000000]" : "bg-[#9999ff] text-[#000000]"
+                }`}
+            >
+              {toast.msg}
+            </div></div>
+        )}
+      </div></div>
+  );
+}
+    // prettier-ignore-end
+
+    try {
+      const rootElement = document.getElementById("container");
+      if (!rootElement) throw new Error('Container not found');
+      if (typeof App === 'undefined') throw new Error('App not defined');
+      
+      const root = createRoot(rootElement);
+      root.render(<App />);
+    } catch (error) {
+      console.error('⚠️ Export Error:', error);
+      document.body.innerHTML = `<div style="padding: 40px; text-align: center; font-family: system-ui; max-width: 600px; margin: 100px auto;"><h1 style="color: #ef4444; margin-bottom: 20px;">⚠️ Export Error</h1><p style="color: #64748b; margin-bottom: 10px;">The app could not be loaded.</p><p style="color: #ef4444; font-size: 14px; font-weight: 600;">${error.message}</p><p style="color: #64748b; font-size: 12px; margin-top: 20px;">Check the browser console for details.</p></div>`;
+    }
+  </script></body></html>
