@@ -10,7 +10,7 @@ These are small Vibe apps that some folks may find useful. I certainly do. Some 
 - Planet-Generator2.html - neat planetery generator with gallery. Works but a few issues to sort
 - lcars2.html - name says it all, work in progress. Next step is to make a better header
 - LCARS-personal-log.html - note taking and ai generating personal log dressed up with TOS and TNG themes
-- Starship Relativity Calculator.html This is my redo of Stephen Schmitts Relativity calculator for contants G space travel
+- Starship Relativity Calculator - in the Starship-Calc folder. This is my redo of Stephen Schmitts Relativity calculator for contants G space travel
 -  
 
 ## Remixes
