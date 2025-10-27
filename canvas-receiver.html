@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Receiver - View & Display</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        
+        .canvas-wrapper {
+            border: 3px solid #f5576c;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background: white;
+            display: inline-block;
+            position: relative;
+        }
+        
+        canvas {
+            display: block;
+            background: white;
+        }
+        
+        .placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #999;
+            pointer-events: none;
+        }
+        
+        .placeholder-icon {
+            font-size: 80px;
+            margin-bottom: 10px;
+        }
+        
+        .placeholder-text {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: #f5576c;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #e0445a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #9f7aea;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #805ad5;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(159, 122, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn-danger {
+            background: #fc8181;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #f56565;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(252, 129, 129, 0.4);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+            display: block;
+        }
+        
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+            display: block;
+        }
+        
+        .status.warning {
+            background: #fef5e7;
+            color: #975a16;
+            border: 1px solid #f6e05e;
+            display: block;
+        }
+        
+        .info-box {
+            background: #fff5f7;
+            border: 1px solid #fbb6ce;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #97266d;
+            line-height: 1.6;
+        }
+        
+        .info-box h3 {
+            margin-bottom: 8px;
+            color: #97266d;
+            font-size: 15px;
+        }
+        
+        .metadata {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #4a5568;
+            display: none;
+        }
+        
+        .metadata.show {
+            display: block;
+        }
+        
+        .metadata h3 {
+            margin-bottom: 10px;
+            color: #2d3748;
+            font-size: 15px;
+        }
+        
+        .metadata-item {
+            margin-bottom: 5px;
+        }
+        
+        .metadata-label {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: #edf2f7;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+        
+        .auto-refresh input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .auto-refresh label {
+            cursor: pointer;
+            font-size: 14px;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👁️ Canvas Receiver</h1>
+        <p class="subtitle">Import and display canvas data from localStorage</p>
+        
+        <div class="canvas-wrapper">
+            <canvas id="displayCanvas" width="800" height="500"></canvas>
+            <div class="placeholder" id="placeholder">
+                <div class="placeholder-icon">📭</div>
+                <div class="placeholder-text">No canvas data loaded</div>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn-primary" onclick="importCanvas()">📥 Import from localStorage</button>
+            <button class="btn-success" onclick="downloadCanvas()">💾 Download as PNG</button>
+            <button class="btn-secondary" onclick="toggleMetadata()">📊 Show Metadata</button>
+            <button class="btn-danger" onclick="clearStorage()">🗑️ Clear Storage</button>
+        </div>
+        
+        <div class="auto-refresh">
+            <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+            <label for="autoRefresh">Auto-refresh every 2 seconds</label>
+        </div>
+        
+        <div id="statusMessage" class="status"></div>
+        
+        <div id="metadata" class="metadata">
+            <h3>Canvas Metadata</h3>
+            <div id="metadataContent"></div>
+        </div>
+        
+        <div class="info-box">
+            <h3>How to use:</h3>
+            <p><strong>1. Import:</strong> Click "Import from localStorage" to load canvas data</p>
+            <p><strong>2. Download:</strong> Click "Download as PNG" to save the image to your device</p>
+            <p><strong>3. Metadata:</strong> Click "Show Metadata" to view information about the canvas</p>
+            <p><strong>4. Auto-refresh:</strong> Enable auto-refresh to automatically update when new data is available</p>
+            <p><br><strong>Note:</strong> This page works completely offline and receives data from the sender page via localStorage!</p>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('displayCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusMessage = document.getElementById('statusMessage');
+        const placeholder = document.getElementById('placeholder');
+        const metadata = document.getElementById('metadata');
+        const metadataContent = document.getElementById('metadataContent');
+        const autoRefreshCheckbox = document.getElementById('autoRefresh');
+        
+        let autoRefreshInterval = null;
+        let hasLoadedData = false;
+        
+        // Initialize canvas with white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        /**
+         * Import canvas data from localStorage
+         * This function retrieves base64 data URL from localStorage and displays it
+         */
+        function importCanvas() {
+            try {
+                const dataURL = localStorage.getItem('canvasData');
+                
+                if (!dataURL) {
+                    showStatus('⚠ No canvas data found in localStorage. Please export data from the sender page first.', 'warning');
+                    return;
+                }
+                
+                const img = new Image();
+                img.onload = function() {
+                    // Clear canvas and draw the loaded image
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Hide placeholder
+                    placeholder.style.display = 'none';
+                    hasLoadedData = true;
+                    
+                    // Show success message
+                    const sizeKB = (dataURL.length / 1024).toFixed(2);
+                    showStatus(`✓ Canvas imported successfully! (${sizeKB} KB)`, 'success');
+                    
+                    // Update metadata
+                    updateMetadata();
+                };
+                img.onerror = function() {
+                    showStatus('✗ Error loading canvas data. The data may be corrupted.', 'error');
+                };
+                img.src = dataURL;
+            } catch (error) {
+                showStatus('✗ Error importing canvas: ' + error.message, 'error');
+            }
+        }
+        
+        /**
+         * Download canvas as PNG file
+         */
+        function downloadCanvas() {
+            if (!hasLoadedData) {
+                showStatus('⚠ Please import canvas data first', 'warning');
+                return;
+            }
+            
+            try {
+                const dataURL = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = 'canvas-export-' + new Date().getTime() + '.png';
+                link.href = dataURL;
+                link.click();
+                showStatus('✓ Canvas downloaded successfully!', 'success');
+            } catch (error) {
+                showStatus('✗ Error downloading canvas: ' + error.message, 'error');
+            }
+        }
+        
+        /**
+         * Toggle metadata display
+         */
+        function toggleMetadata() {
+            if (metadata.classList.contains('show')) {
+                metadata.classList.remove('show');
+            } else {
+                metadata.classList.add('show');
+                updateMetadata();
+            }
+        }
+        
+        /**
+         * Update metadata display
+         */
+        function updateMetadata() {
+            try {
+                const dataURL = localStorage.getItem('canvasData');
+                const metadataStr = localStorage.getItem('canvasMetadata');
+                
+                if (!dataURL) {
+                    metadataContent.innerHTML = '<p style="color: #999;">No metadata available</p>';
+                    return;
+                }
+                
+                const sizeKB = (dataURL.length / 1024).toFixed(2);
+                const sizeMB = (dataURL.length / (1024 * 1024)).toFixed(2);
+                
+                let html = `
+                    <div class="metadata-item">
+                        <span class="metadata-label">Data Size:</span> ${sizeKB} KB (${sizeMB} MB)
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Data Type:</span> Base64 Data URL
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Format:</span> PNG
+                    </div>
+                    <div class="metadata-item">
+                        <span class="metadata-label">Canvas Size:</span> ${canvas.width} × ${canvas.height} pixels
+                    </div>
+                `;
+                
+                if (metadataStr) {
+                    const meta = JSON.parse(metadataStr);
+                    html += `
+                        <div class="metadata-item">
+                            <span class="metadata-label">Saved:</span> ${new Date(meta.timestamp).toLocaleString()}
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Original Size:</span> ${meta.width} × ${meta.height} pixels
+                        </div>
+                    `;
+                }
+                
+                metadataContent.innerHTML = html;
+            } catch (error) {
+                metadataContent.innerHTML = '<p style="color: #999;">Error loading metadata</p>';
+            }
+        }
+        
+        /**
+         * Clear localStorage data
+         */
+        function clearStorage() {
+            if (confirm('Are you sure you want to clear all canvas data from localStorage?')) {
+                try {
+                    localStorage.removeItem('canvasData');
+                    localStorage.removeItem('canvasMetadata');
+                    
+                    // Clear canvas
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Show placeholder
+                    placeholder.style.display = 'block';
+                    hasLoadedData = false;
+                    
+                    showStatus('✓ Storage cleared successfully', 'success');
+                    
+                    // Update metadata
+                    if (metadata.classList.contains('show')) {
+                        updateMetadata();
+                    }
+                } catch (error) {
+                    showStatus('✗ Error clearing storage: ' + error.message, 'error');
+                }
+            }
+        }
+        
+        /**
+         * Toggle auto-refresh
+         */
+        function toggleAutoRefresh() {
+            if (autoRefreshCheckbox.checked) {
+                // Start auto-refresh
+                autoRefreshInterval = setInterval(() => {
+                    importCanvas();
+                }, 2000);
+                showStatus('✓ Auto-refresh enabled', 'success');
+            } else {
+                // Stop auto-refresh
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                showStatus('✓ Auto-refresh disabled', 'success');
+            }
+        }
+        
+        /**
+         * Show status message
+         */
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status ' + type;
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Check for data on load
+        window.addEventListener('load', () => {
+            const dataURL = localStorage.getItem('canvasData');
+            if (dataURL) {
+                // Auto-import if data exists
+                importCanvas();
+            }
+        });
+        
+        // Log API information for debugging
+        console.log('Canvas Receiver initialized');
+        console.log('Canvas API functions available:');
+        console.log('- importCanvas(): Import canvas from localStorage');
+        console.log('- downloadCanvas(): Download canvas as PNG');
+        console.log('- clearStorage(): Clear localStorage data');
+        console.log('- toggleMetadata(): Toggle metadata display');
+    </script>
+</body>
+</html>
