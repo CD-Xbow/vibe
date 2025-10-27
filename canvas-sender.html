@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Sender - Draw & Export</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        
+        .canvas-wrapper {
+            border: 3px solid #667eea;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background: white;
+            display: inline-block;
+        }
+        
+        canvas {
+            display: block;
+            cursor: crosshair;
+            background: white;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        input[type="color"] {
+            width: 50px;
+            height: 38px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        input[type="range"] {
+            width: 120px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+        }
+        
+        .btn-info {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .btn-info:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+        
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+            display: block;
+        }
+        
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+            display: block;
+        }
+        
+        .info-box {
+            background: #ebf8ff;
+            border: 1px solid #bee3f8;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #2c5282;
+            line-height: 1.6;
+        }
+        
+        .info-box h3 {
+            margin-bottom: 8px;
+            color: #2c5282;
+            font-size: 15px;
+        }
+        
+        .size-display {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Canvas Sender</h1>
+        <p class="subtitle">Draw on the canvas below and export your artwork to localStorage</p>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="colorPicker">Color:</label>
+                <input type="color" id="colorPicker" value="#000000">
+            </div>
+            <div class="control-group">
+                <label for="brushSize">Brush Size:</label>
+                <input type="range" id="brushSize" min="1" max="50" value="5">
+                <span id="brushSizeValue">5</span>
+            </div>
+        </div>
+        
+        <div class="canvas-wrapper">
+            <canvas id="drawingCanvas" width="800" height="500"></canvas>
+        </div>
+        
+        <div class="actions">
+            <button class="btn-primary" onclick="exportCanvas()">📤 Export to localStorage</button>
+            <button class="btn-secondary" onclick="loadFromLocalStorage()">📥 Load from localStorage</button>
+            <button class="btn-danger" onclick="clearCanvas()">🗑️ Clear Canvas</button>
+            <button class="btn-info" onclick="openReceiver()">👁️ Open Receiver</button>
+        </div>
+        
+        <div id="statusMessage" class="status"></div>
+        <div class="size-display" id="sizeDisplay"></div>
+        
+        <div class="info-box">
+            <h3>How to use:</h3>
+            <p><strong>1. Draw:</strong> Click and drag on the canvas to draw</p>
+            <p><strong>2. Export:</strong> Click "Export to localStorage" to save your drawing</p>
+            <p><strong>3. View:</strong> Click "Open Receiver" to open the receiver page in a new tab/window</p>
+            <p><strong>4. Import:</strong> On the receiver page, click "Import from localStorage" to view your drawing</p>
+            <p><br><strong>Note:</strong> This works completely offline and is compatible with embedded webviews!</p>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        const brushSize = document.getElementById('brushSize');
+        const brushSizeValue = document.getElementById('brushSizeValue');
+        const statusMessage = document.getElementById('statusMessage');
+        const sizeDisplay = document.getElementById('sizeDisplay');
+        
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // Initialize canvas with white background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Update brush size display
+        brushSize.addEventListener('input', (e) => {
+            brushSizeValue.textContent = e.target.value;
+        });
+        
+        // Drawing functions
+        function startDrawing(e) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+        }
+        
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            ctx.strokeStyle = colorPicker.value;
+            ctx.lineWidth = brushSize.value;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+            
+            lastX = currentX;
+            lastY = currentY;
+        }
+        
+        function stopDrawing() {
+            isDrawing = false;
+        }
+        
+        // Mouse events
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        // Touch events for mobile/tablet support
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const mouseEvent = new MouseEvent('mouseup', {});
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        /**
+         * Export canvas data to localStorage as base64 data URL
+         * This function captures the canvas content and stores it in localStorage
+         */
+        function exportCanvas() {
+            try {
+                // Convert canvas to base64 data URL
+                const dataURL = canvas.toDataURL('image/png');
+                
+                // Store in localStorage
+                localStorage.setItem('canvasData', dataURL);
+                
+                // Store metadata
+                const metadata = {
+                    timestamp: new Date().toISOString(),
+                    width: canvas.width,
+                    height: canvas.height,
+                    size: dataURL.length
+                };
+                localStorage.setItem('canvasMetadata', JSON.stringify(metadata));
+                
+                // Calculate size in KB
+                const sizeKB = (dataURL.length / 1024).toFixed(2);
+                
+                // Show success message
+                showStatus(`✓ Canvas exported successfully! (${sizeKB} KB)`, 'success');
+                updateSizeDisplay();
+            } catch (error) {
+                showStatus('✗ Error exporting canvas: ' + error.message, 'error');
+            }
+        }
+        
+        /**
+         * Load canvas data from localStorage
+         * This function retrieves and displays previously saved canvas data
+         */
+        function loadFromLocalStorage() {
+            try {
+                const dataURL = localStorage.getItem('canvasData');
+                
+                if (!dataURL) {
+                    showStatus('⚠ No canvas data found in localStorage', 'error');
+                    return;
+                }
+                
+                const img = new Image();
+                img.onload = function() {
+                    // Clear canvas and draw the loaded image
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    showStatus('✓ Canvas loaded successfully!', 'success');
+                    updateSizeDisplay();
+                };
+                img.onerror = function() {
+                    showStatus('✗ Error loading canvas data', 'error');
+                };
+                img.src = dataURL;
+            } catch (error) {
+                showStatus('✗ Error loading canvas: ' + error.message, 'error');
+            }
+        }
+        
+        /**
+         * Clear the canvas
+         */
+        function clearCanvas() {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            showStatus('✓ Canvas cleared', 'success');
+        }
+        
+        /**
+         * Open the receiver page in a new window/tab
+         */
+        function openReceiver() {
+            // Try to determine the correct path for the receiver
+            const currentPath = window.location.href;
+            const receiverPath = currentPath.replace('canvas-sender.html', 'canvas-receiver.html');
+            window.open(receiverPath, '_blank');
+        }
+        
+        /**
+         * Show status message
+         */
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status ' + type;
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        /**
+         * Update size display
+         */
+        function updateSizeDisplay() {
+            const dataURL = localStorage.getItem('canvasData');
+            if (dataURL) {
+                const sizeKB = (dataURL.length / 1024).toFixed(2);
+                const metadata = JSON.parse(localStorage.getItem('canvasMetadata') || '{}');
+                sizeDisplay.textContent = `Stored data: ${sizeKB} KB | Saved: ${metadata.timestamp ? new Date(metadata.timestamp).toLocaleString() : 'Unknown'}`;
+            } else {
+                sizeDisplay.textContent = 'No data stored in localStorage';
+            }
+        }
+        
+        // Initial size display update
+        updateSizeDisplay();
+        
+        // Log API information for debugging
+        console.log('Canvas Sender initialized');
+        console.log('Canvas API functions available:');
+        console.log('- exportCanvas(): Export canvas to localStorage');
+        console.log('- loadFromLocalStorage(): Load canvas from localStorage');
+        console.log('- clearCanvas(): Clear the canvas');
+    </script>
+</body>
+</html>
