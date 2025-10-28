@@ -11,7 +11,7 @@ These are small Vibe apps that some folks may find useful. I certainly do. Some 
 - lcars2.html - name says it all, work in progress. Next step is to make a better header
 - LCARS-personal-log.html - note taking and ai generating personal log dressed up with TOS and TNG themes
 - Starship Relativity Calculator - in the Starship-Calc folder. This is my redo of Stephen Schmitts Relativity calculator for contants G space travel
--  
+- pattern.html - Pattern Generator
 
 ## Remixes
 These are remixes of others work
