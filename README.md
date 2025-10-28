@@ -29,7 +29,11 @@ These are remixes of others work
 
 ## Warnings
 
-These apps are entirely dependent on Vibe being up and working, all the ai smarts occur on the vibe server, so if it is down you are stuffed. Mind you this is no different to any online dependency, I felt it needed to be spelt out clearly. It's already happened to me once. 
+These apps are entirely dependent on Vibe being up and working, so if it is down you are stuffed. Mind you this is no different to any online dependency, I felt it needed to be spelt out clearly. It's already happened to me once. 
+
+## Warning Number 2
+
+I hate being right (about somethings). During October 2025 the potential problems I mentioned happened. It was a double whammy. First there were changes to react which broke many pages then there were the authentication problems. Authentication had been like my Aunt Dolly, free and easy, which led to the inevitable abuse. It had to be changed and now you need to authenticate. 
 
 ## Enjoy
 
