@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Made on Vibes DIY</title>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #container {
+      width: 100%;
+      height: 100vh;
+    }
+
+    .primalcore-badge {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 8px 16px 8px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 999999;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .primalcore-badge:hover {
+      background: rgba(0, 0, 0, 0.9);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .primalcore-badge.hidden {
+      display: none;
+    }
+
+    .badge-close {
+      margin-left: 4px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      transition: background 0.2s;
+    }
+
+    .badge-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container"></div>
+  <div class="primalcore-badge" id="vibes-badge">
+    <a href="https://discord.gg/VeSrbWpE" target="_blank" rel="noopener noreferrer"
+      style="display: flex; align-items: center; gap: 6px; color: white; text-decoration: none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+        <path d="M2 17l10 5 10-5"></path>
+        <path d="M2 12l10 5 10-5"></path>
+      </svg>
+      <span>Made on PrimalCore</span>
+    </a>
+    <button class="badge-close" onclick="document.getElementById('vibes-badge').classList.add('hidden')"
+      title="Hide badge (will reappear on reload)">×</button>
+  </div>
+  <script>
+    window.CALLAI_API_KEY = "sk-vibes-proxy-managed";
+    window.CALLAI_CHAT_URL = "https://vibesdiy.net";
+    window.CALLAI_IMG_URL = "https://vibesdiy.net";
+    
+    // Authentication system for exported apps
+    (function() {
+      const CONNECT_URL = 'https://connect.fireproof.direct/token';
+      const CONNECT_API_URL = 'https://connect.fireproof.direct/api';
+      
+      // Check for existing auth token
+      function getAuthToken() {
+        return localStorage.getItem('vibes-diy-auth-token') || 
+               localStorage.getItem('auth_token');
+      }
+      
+      // Set auth token in localStorage
+      function setAuthToken(token) {
+        localStorage.setItem('vibes-diy-auth-token', token);
+        localStorage.setItem('auth_token', token);
+      }
+      
+      // Generate random result ID
+      function randomResultId(length = 10) {
+        const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        let res = 'z';
+        for (let i = 0; i < length; i++) {
+          res += alphabet[Math.floor(Math.random() * alphabet.length)];
+        }
+        return res;
+      }
+      
+      // Initiate login flow
+      window.initiateLogin = function() {
+        const resultId = randomResultId();
+        sessionStorage.setItem('auth_result_id', resultId);
+        
+        const connectUrl = `${CONNECT_URL}?result_id=${resultId}&countdownSecs=0&skipChooser=1&fromApp=vibesdiy`;
+        const popupWidth = 600;
+        const popupHeight = 700;
+        const left = window.screenX + (window.outerWidth - popupWidth) / 2;
+        const top = window.screenY + (window.outerHeight - popupHeight) / 2;
+        const popupFeatures = `width=${popupWidth},height=${popupHeight},left=${left},top=${top},scrollbars=yes`;
+        
+        window.open(connectUrl, 'authPopup', popupFeatures);
+        
+        // Poll for token
+        pollForAuthToken(resultId);
+      };
+      
+      // Poll for auth token
+      async function pollForAuthToken(resultId, intervalMs = 1500, timeoutMs = 60000) {
+        const endpoint = `${CONNECT_API_URL}/token/${resultId}`;
+        const start = Date.now();
+        
+        while (Date.now() - start < timeoutMs) {
+          try {
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ resultId, type: 'reqTokenByResultId' })
+            });
+            
+            if (res.ok) {
+              const data = await res.json();
+              if (data.token) {
+                setAuthToken(data.token);
+                console.log('Logged in successfully!');
+                window.location.reload(); // Reload to apply auth
+                return;
+              }
+            }
+          } catch (err) {
+            console.error('Polling error:', err);
+          }
+          await new Promise(r => setTimeout(r, intervalMs));
+        }
+        console.warn('Login timed out');
+      }
+      
+      // Listen for auth messages from popup
+      window.addEventListener('message', function(event) {
+        if (event.origin !== window.location.origin) return;
+        if (event.data?.type === 'authSuccess' && event.data.token) {
+          setAuthToken(event.data.token);
+          console.log('Logged in successfully!');
+          window.location.reload();
+        }
+      });
+      
+      // Check if user is authenticated
+      const token = getAuthToken();
+      window.isAuthenticated = !!token;
+      
+      // Show login prompt if not authenticated
+      if (!token) {
+        const loginPrompt = document.createElement('div');
+        loginPrompt.id = 'vibes-login-prompt';
+        loginPrompt.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#7c3aed;color:white;padding:12px;text-align:center;z-index:999999;font-family:sans-serif;';
+        loginPrompt.innerHTML = '<span>This app requires login to use AI features.</span> <button onclick="initiateLogin()" style="margin-left:12px;background:white;color:#7c3aed;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Log In</button>';
+        document.body.appendChild(loginPrompt);
+      }
+    })();
+  </script>
+  <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@>=19.1.0",
+          "react-dom": "https://esm.sh/react-dom@>=19.1.0",
+          "react-dom/client": "https://esm.sh/react-dom@>=19.1.0/client",
+          "use-fireproof": "https://esm.sh/use-vibes@>=0.13.0",
+          "call-ai": "https://esm.sh/call-ai",
+          "use-vibes": "https://esm.sh/use-vibes@>=0.13.0",
+          "https://esm.sh/use-fireproof": "https://esm.sh/use-vibes@>=0.13.0",
+          "https://esm.sh/use-vibes": "https://esm.sh/use-vibes@>=0.13.0",
+          "eruda": "https://esm.sh/eruda",
+          "three": "https://esm.sh/three",
+          "d3": "https://esm.sh/d3",
+          "framer-motion": "https://esm.sh/framer-motion",
+          "react-hook-form": "https://esm.sh/react-hook-form",
+          "@dnd-kit/core": "https://esm.sh/@dnd-kit/core",
+          "@dnd-kit/sortable": "https://esm.sh/@dnd-kit/sortable",
+          "lucide-react": "https://esm.sh/lucide-react",
+          "react-qr-code": "https://esm.sh/react-qr-code",
+          "zustand": "https://esm.sh/zustand",
+          "recharts": "https://esm.sh/recharts",
+          "react-markdown": "https://esm.sh/react-markdown",
+          "react-webcam": "https://esm.sh/react-webcam",
+          "howler": "https://esm.sh/howler",
+          "puter": "https://esm.sh/puter",
+          "react-player": "https://esm.sh/react-player",
+          "react-big-calendar": "https://esm.sh/react-big-calendar",
+          "@tanstack/react-table": "https://esm.sh/@tanstack/react-table",
+          "react-leaflet": "https://esm.sh/react-leaflet",
+          "@react-pdf/renderer": "https://esm.sh/@react-pdf/renderer",
+          "react-dropzone": "https://esm.sh/react-dropzone",
+          "@react-spring/web": "https://esm.sh/@react-spring/web",
+          "react-toastify": "https://esm.sh/react-toastify",
+          "react-icons": "https://esm.sh/react-icons",
+          "react-confetti": "https://esm.sh/react-confetti",
+          "react-syntax-highlighter": "https://esm.sh/react-syntax-highlighter",
+          "react-slick": "https://esm.sh/react-slick",
+          "react-color": "https://esm.sh/react-color",
+          "react-joyride": "https://esm.sh/react-joyride",
+          "react-beautiful-dnd": "https://esm.sh/react-beautiful-dnd",
+          "react-chartjs-2": "https://esm.sh/react-chartjs-2",
+          "chart.js": "https://esm.sh/chart.js"
+        }
+      }
+    </script>
+  <script type="text/babel" data-type="module">
+    import ReactDOMClient from "react-dom/client";
+
+    import React, { useState, useRef, useEffect } from "react"
+import { useFireproof } from "use-fireproof"
+
+export default function App() {
+  const { database, useLiveQuery } = useFireproof("pattern-generator")
+  const canvasRef = useRef(null)
+  
+  const [tileShape, setTileShape] = useState("squares")
+  const [tileSize, setTileSize] = useState(50)
+  const [angle, setAngle] = useState(0)
+  const [fillType, setFillType] = useState("preset")
+  const [preset, setPreset] = useState("gradient-purple")
+  const [uploadedImage, setUploadedImage] = useState(null)
+  
+  const queryResult = useLiveQuery("type", { key: "pattern" })
+  const savedPatterns = queryResult?.docs || []
+
+  const shapes = [
+    { value: "horizontal-lines", label: "Horizontal Lines" },
+    { value: "vertical-lines", label: "Vertical Lines" },
+    { value: "squares", label: "Squares" },
+    { value: "rectangles", label: "Rectangles" },
+    { value: "triangles", label: "Triangles" },
+    { value: "pentagons", label: "Pentagons" },
+    { value: "hexagons", label: "Hexagons" },
+    { value: "octagons", label: "Octagons" },
+    { value: "stars", label: "Stars" },
+    { value: "spindle", label: "Spindle" },
+    { value: "spider", label: "Spider" },
+    { value: "circles", label: "Circles" }
+  ]
+
+  const presets = [
+    { id: "gradient-purple", name: "Purple Dream", color1: "#9333ea", color2: "#ec4899" },
+    { id: "gradient-blue", name: "Ocean Wave", color1: "#0ea5e9", color2: "#06b6d4" },
+    { id: "gradient-fire", name: "Sunset Fire", color1: "#f97316", color2: "#dc2626" },
+    { id: "gradient-forest", name: "Forest Green", color1: "#059669", color2: "#10b981" },
+    { id: "gold", name: "Gold", color1: "#fbbf24", color2: "#f59e0b" },
+    { id: "silver", name: "Silver", color1: "#e5e7eb", color2: "#9ca3af" },
+    { id: "pearl", name: "Pearl", color1: "#fef3c7", color2: "#fce7f3" },
+    { id: "sapphire", name: "Sapphire", color1: "#1e40af", color2: "#3b82f6" },
+    { id: "ruby", name: "Ruby", color1: "#dc2626", color2: "#ef4444" },
+    { id: "checkerboard", name: "Checkerboard", color1: "#000000", color2: "#ffffff" }
+  ]
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      drawPattern()
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [tileShape, tileSize, angle, fillType, preset, uploadedImage])
+
+  const drawPolygon = (ctx, x, y, radius, sides) => {
+    ctx.beginPath()
+    for (let i = 0; i < sides; i++) {
+      const ang = (i * 2 * Math.PI) / sides - Math.PI / 2
+      const px = x + radius * Math.cos(ang)
+      const py = y + radius * Math.sin(ang)
+      if (i === 0) {
+        ctx.moveTo(px, py)
+      } else {
+        ctx.lineTo(px, py)
+      }
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+  }
+
+  const drawStar = (ctx, x, y, points, outer, inner) => {
+    ctx.beginPath()
+    for (let i = 0; i < points * 2; i++) {
+      const radius = i % 2 === 0 ? outer : inner
+      const ang = (i * Math.PI) / points - Math.PI / 2
+      const px = x + radius * Math.cos(ang)
+      const py = y + radius * Math.sin(ang)
+      if (i === 0) {
+        ctx.moveTo(px, py)
+      } else {
+        ctx.lineTo(px, py)
+      }
+    }
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+  }
+
+  const drawSpindle = (ctx, x, y, size) => {
+    const nubSize = size * 0.15
+    
+    ctx.save()
+    ctx.beginPath()
+    
+    ctx.moveTo(x, y)
+    ctx.lineTo(x + size / 2 - nubSize, y)
+    ctx.arc(x + size / 2, y - nubSize, nubSize, Math.PI, 0, false)
+    ctx.lineTo(x + size, y)
+    
+    ctx.lineTo(x + size, y + size / 2 - nubSize)
+    ctx.arc(x + size + nubSize, y + size / 2, nubSize, Math.PI, 0, true)
+    ctx.lineTo(x + size, y + size)
+    
+    ctx.lineTo(x + size / 2 + nubSize, y + size)
+    ctx.arc(x + size / 2, y + size + nubSize, nubSize, 0, Math.PI, true)
+    ctx.lineTo(x, y + size)
+    
+    ctx.lineTo(x, y + size / 2 + nubSize)
+    ctx.arc(x - nubSize, y + size / 2, nubSize, 0, Math.PI, false)
+    ctx.lineTo(x, y)
+    
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  const drawSpider = (ctx, x, y, size) => {
+    ctx.beginPath()
+    ctx.arc(x, y, size / 3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    for (let i = 0; i < 8; i++) {
+      const ang = (i * Math.PI) / 4
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.lineTo(x + size * Math.cos(ang), y + size * Math.sin(ang))
+      ctx.stroke()
+    }
+  }
+
+  const drawPattern = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    
+    const width = 800
+    const height = 600
+    
+    ctx.clearRect(0, 0, width, height)
+    ctx.fillStyle = "#0f172a"
+    ctx.fillRect(0, 0, width, height)
+    
+    ctx.save()
+    ctx.translate(width / 2, height / 2)
+    ctx.rotate((angle * Math.PI) / 180)
+    ctx.translate(-width / 2, -height / 2)
+
+    const currentPreset = presets.find(p => p.id === preset)
+
+    for (let y = -height; y < height * 2; y += tileSize) {
+      for (let x = -width; x < width * 2; x += tileSize) {
+        
+        if (fillType === "uploaded" && uploadedImage) {
+          const pattern = ctx.createPattern(uploadedImage, "repeat")
+          ctx.fillStyle = pattern || "#9333ea"
+        } else if (currentPreset) {
+          if (preset === "checkerboard") {
+            const row = Math.floor(y / tileSize)
+            const col = Math.floor(x / tileSize)
+            ctx.fillStyle = (row + col) % 2 === 0 ? currentPreset.color1 : currentPreset.color2
+          } else {
+            const gradient = ctx.createLinearGradient(x, y, x + tileSize, y + tileSize)
+            gradient.addColorStop(0, currentPreset.color1)
+            gradient.addColorStop(1, currentPreset.color2)
+            ctx.fillStyle = gradient
+          }
+        } else {
+          ctx.fillStyle = "#9333ea"
+        }
+        
+        ctx.strokeStyle = "#1e293b"
+        ctx.lineWidth = 2
+
+        if (tileShape === "horizontal-lines") {
+          ctx.fillRect(x, y, width * 2, 8)
+        } else if (tileShape === "vertical-lines") {
+          ctx.fillRect(x, y, 8, height * 2)
+        } else if (tileShape === "squares") {
+          ctx.fillRect(x, y, tileSize, tileSize)
+          ctx.strokeRect(x, y, tileSize, tileSize)
+        } else if (tileShape === "rectangles") {
+          ctx.fillRect(x, y, tileSize * 1.5, tileSize * 0.75)
+          ctx.strokeRect(x, y, tileSize * 1.5, tileSize * 0.75)
+        } else if (tileShape === "triangles") {
+          ctx.beginPath()
+          ctx.moveTo(x + tileSize / 2, y)
+          ctx.lineTo(x + tileSize, y + tileSize)
+          ctx.lineTo(x, y + tileSize)
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
+        } else if (tileShape === "pentagons") {
+          drawPolygon(ctx, x + tileSize / 2, y + tileSize / 2, tileSize / 2, 5)
+        } else if (tileShape === "hexagons") {
+          drawPolygon(ctx, x + tileSize / 2, y + tileSize / 2, tileSize / 2, 6)
+        } else if (tileShape === "octagons") {
+          drawPolygon(ctx, x + tileSize / 2, y + tileSize / 2, tileSize / 2, 8)
+        } else if (tileShape === "stars") {
+          drawStar(ctx, x + tileSize / 2, y + tileSize / 2, 5, tileSize / 2, tileSize / 4)
+        } else if (tileShape === "spindle") {
+          drawSpindle(ctx, x, y, tileSize)
+        } else if (tileShape === "spider") {
+          drawSpider(ctx, x + tileSize / 2, y + tileSize / 2, tileSize / 2)
+        } else if (tileShape === "circles") {
+          ctx.beginPath()
+          ctx.arc(x + tileSize / 2, y + tileSize / 2, tileSize / 2, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+        }
+      }
+    }
+    
+    ctx.restore()
+  }
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        setUploadedImage(img)
+        setFillType("uploaded")
+      }
+      img.src = event.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const savePattern = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95)
+    
+    const response = await fetch(dataUrl)
+    const blob = await response.blob()
+    
+    await database.put({
+      type: "pattern",
+      shape: tileShape,
+      size: tileSize,
+      angle: angle,
+      fillType: fillType,
+      preset: preset,
+      imageData: dataUrl,
+      timestamp: Date.now(),
+      _files: {
+        image: blob
+      }
+    })
+  }
+
+  const downloadPattern = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95)
+    const a = document.createElement("a")
+    a.href = dataUrl
+    a.download = `pattern-${Date.now()}.jpg`
+    a.click()
+  }
+
+  const downloadSavedPattern = (pattern) => {
+    if (pattern.imageData) {
+      const a = document.createElement("a")
+      a.href = pattern.imageData
+      a.download = `pattern-${pattern._id}.jpg`
+      a.click()
+    }
+  }
+
+  const deletePattern = async (docId) => {
+    if (docId) {
+      await database.del(docId)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] p-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-6xl font-black text-white mb-8">
+          Pattern Generator
+        </h1>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-[#1e293b] border-4 border-[#cbd5e1] rounded-none p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-2xl font-bold text-white mb-6">Controls</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-white mb-2">Tile Shape</label>
+                  <select 
+                    value={tileShape}
+                    onChange={(e) => setTileShape(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#f1f5f9] border-4 border-[#0f172a] rounded-none text-[#0f172a] font-bold focus:outline-none focus:ring-4 focus:ring-[#9333ea] transition-all duration-300"
+                  >
+                    {shapes.map(shape => (
+                      <option key={shape.value} value={shape.value}>
+                        {shape.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white mb-2">
+                    Tile Size: {tileSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="200"
+                    value={tileSize}
+                    onChange={(e) => setTileSize(parseInt(e.target.value))}
+                    className="w-full h-3 bg-[#cbd5e1] rounded-none appearance-none cursor-pointer accent-[#9333ea]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white mb-2">
+                    Angle: {angle}°
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={angle}
+                    onChange={(e) => setAngle(parseInt(e.target.value))}
+                    className="w-full h-3 bg-[#cbd5e1] rounded-none appearance-none cursor-pointer accent-[#9333ea]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white mb-2">Fill Type</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setFillType("preset")}
+                      className={`px-4 py-3 font-bold rounded-none border-4 transition-all duration-300 ${
+                        fillType === "preset" 
+                          ? "bg-[#9333ea] text-white border-[#0f172a] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px]" 
+                          : "bg-[#f1f5f9] text-[#0f172a] border-[#cbd5e1] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                      }`}
+                    >
+                      Preset
+                    </button>
+                    <button
+                      onClick={() => setFillType("uploaded")}
+                      className={`px-4 py-3 font-bold rounded-none border-4 transition-all duration-300 ${
+                        fillType === "uploaded" 
+                          ? "bg-[#9333ea] text-white border-[#0f172a] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px]" 
+                          : "bg-[#f1f5f9] text-[#0f172a] border-[#cbd5e1] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                      }`}
+                    >
+                      Upload
+                    </button>
+                  </div>
+                </div>
+
+                {fillType === "preset" && (
+                  <div>
+                    <label className="block text-sm font-bold text-white mb-2">Preset Style</label>
+                    <select 
+                      value={preset}
+                      onChange={(e) => setPreset(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#f1f5f9] border-4 border-[#0f172a] rounded-none text-[#0f172a] font-bold focus:outline-none focus:ring-4 focus:ring-[#9333ea] transition-all duration-300"
+                    >
+                      {presets.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {fillType === "uploaded" && (
+                  <div>
+                    <label className="block text-sm font-bold text-white mb-2">Upload Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="w-full px-4 py-3 bg-[#f1f5f9] border-4 border-[#0f172a] rounded-none text-[#0f172a] font-bold file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-[#9333ea] file:text-white file:font-bold hover:file:bg-[#7c3aed] transition-all duration-300"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={savePattern}
+                className="px-6 py-4 bg-[#059669] text-white font-bold rounded-none border-4 border-[#0f172a] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] transition-all duration-300"
+              >
+                Save
+              </button>
+              <button
+                onClick={downloadPattern}
+                className="px-6 py-4 bg-[#0ea5e9] text-white font-bold rounded-none border-4 border-[#0f172a] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px] transition-all duration-300"
+              >
+                Download
+              </button>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-[#1e293b] border-4 border-[#cbd5e1] rounded-none p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-2xl font-bold text-white mb-4">Preview</h2>
+              <div className="bg-[#0f172a] rounded-none overflow-hidden border-4 border-[#cbd5e1]">
+                <canvas 
+                  ref={canvasRef} 
+                  width={800} 
+                  height={600}
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+
+            <div className="bg-[#1e293b] border-4 border-[#cbd5e1] rounded-none p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-2xl font-bold text-white mb-4">Saved Patterns ({savedPatterns.length})</h2>
+              {savedPatterns.length === 0 ? (
+                <div className="text-center p-12 bg-[#0f172a] border-4 border-[#cbd5e1] rounded-none">
+                  <div className="text-6xl mb-4">🎨</div>
+                  <h3 className="text-xl font-bold text-white mb-2">No patterns saved yet</h3>
+                  <p className="text-[#cbd5e1]">Create and save your first pattern to get started</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {savedPatterns.map((pattern) => (
+                    <div
+                      key={pattern._id}
+                      className="bg-[#0f172a] border-4 border-[#cbd5e1] rounded-none p-3"
+                    >
+                      <div className="aspect-square bg-[#1e293b] rounded-none mb-3 overflow-hidden border-4 border-[#cbd5e1]">
+                        {pattern.imageData ? (
+                          <img 
+                            src={pattern.imageData} 
+                            alt="Pattern thumbnail"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white text-4xl">
+                            🎨
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => downloadSavedPattern(pattern)}
+                          className="px-3 py-2 bg-[#0ea5e9] text-white text-sm font-bold rounded-none border-2 border-[#0f172a] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] transition-all duration-300"
+                        >
+                          Download
+                        </button>
+                        <button
+                          onClick={() => deletePattern(pattern._id)}
+                          className="px-3 py-2 bg-[#dc2626] text-white text-sm font-bold rounded-none border-2 border-[#0f172a] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[2px] active:translate-y-[2px] transition-all duration-300"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer className="mt-12 text-center pb-8">
+          <p className="text-[#cbd5e1] text-sm font-medium">
+            Made with{" "}
+            <a 
+              href="https://vibes.diy" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[#9333ea] hover:text-[#7c3aed] font-bold underline transition-colors duration-300"
+            >
+              Vibes.DIY
+            </a>
+            {" "}despite its reluctance using{" "}
+            <a 
+              href="https://primalcore.netlify.app/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[#9333ea] hover:text-[#7c3aed] font-bold underline transition-colors duration-300"
+            >
+              PrimalCore
+            </a>
+            {" "}by the long suffering{" "}
+            <a 
+              href="https://github.com/CD-Xbow/vibe" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-[#9333ea] hover:text-[#7c3aed] font-bold underline transition-colors duration-300"
+            >
+              CD Xbow
+            </a>
+          </p>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+    const rootElement = document.getElementById("container");
+    ReactDOMClient.createRoot(rootElement).render(<App />);
+  </script>
+  <!--
+    Agents see LLMs docs:
+      Database: https://use-fireproof.com/llms-full.txt 
+      CallAI: https://use-fireproof.com/callai-llms.txt
+      ImgGen: https://use-fireproof.com/imggen-llms.txt
+      Pollinations AI: https://raw.githubusercontent.com/pollinations/pollinations/master/APIDOCS.md
+    
+    POLLINATIONS AI QUICK REFERENCE:
+    - Image Generation: https://image.pollinations.ai/prompt/{prompt}?width=1024&height=1024&model=flux
+    - Text Generation: https://text.pollinations.ai/{prompt}?model=openai
+    - Text-to-Speech: https://text.pollinations.ai/{text}?model=openai-audio&voice=nova
+    - No API key required! Free to use with rate limits.
+    - For React: Use fetch() or img src directly with the URLs above
+    - Example: <img src="https://image.pollinations.ai/prompt/a%20cute%20cat" />
+    -->
+</body>
+
+</html>
