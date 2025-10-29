@@ -20,7 +20,7 @@ These are remixes of others work
 - drummachine.html - a drum machine
 - ai303.html - a digital reprsentation of the famous Roland 303
 - psycho.html - Wild color filter tool, I've toned down the interface. http://psychodali.puter.site
-- puter-ai.html - 
+- puter-ai.html - an ai chat with multiple models, it needs a puter.com account to log in - you all have one of those don't you? https://puter.com/ If you get a puter account you can access many wonderful apps, including ai ones, including this one https://puter.com/app/puter-hub with multiple ai model, image and vision enabled one. Do ya' self a favour, check it out. 
 
 ## Use
 
@@ -33,7 +33,7 @@ These apps are entirely dependent on Vibe being up and working, so if it is down
 
 ## Warning Number 2
 
-I hate being right (about somethings). During October 2025 the potential problems I mentioned happened. It was a double whammy. First there were changes to react which broke many pages then there were the authentication problems. Authentication had been like my Aunt Dolly, free and easy, which led to the inevitable abuse. It had to be changed and now you need to authenticate. 
+I hate being right (about somethings). During October 2025 the potential problems I mentioned happened. It was a double whammy. First there were changes to react which broke many pages then there were the authentication problems. Authentication had been like my Aunt Dolly, free and easy, which led to the inevitable abuse. It had to be changed and now you need to authenticate.I am gradually rebuilding all the apps. Sorry for an inconvience. 
 
 ## Enjoy
 
